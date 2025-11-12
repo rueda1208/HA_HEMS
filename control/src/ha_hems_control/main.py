@@ -1,0 +1,78 @@
+import os
+import time
+import logging
+import schedule 
+
+import utils
+from ha_interface.ha_interface import HomeAssistantDeviceInterface
+
+# Set up logging
+utils.setup_logging(filename="ha_hems_control.log")
+logger = logging.getLogger(__name__)
+
+HA_CREDENTIALS = {
+    "host": os.getenv("HA_HOST", "http://supervisor/core"),
+    "port": int(os.getenv("HA_PORT", 8123)),
+    "token": os.getenv('SUPERVISOR_TOKEN'),
+}
+
+def main() -> None:
+    logger.debug("Starting gdp events api module ...")
+
+    # Retrieve the list of devices from Home Assistant.
+    ha_interface = HomeAssistantDeviceInterface(**HA_CREDENTIALS)
+    
+    # Get list of devices from Home Assistant
+    devices_list = ha_interface.get_devices_list()
+    
+    # Update config.yaml with any new zones found in Home Assistant
+    utils.update_config_with_zones(zones=devices_list)
+    
+    # Create heat pump COP model from config data
+    heat_pump_cop_models = utils.create_cop_model()
+    
+    # Main control loop
+    def _main_loop():
+        devices_state = ha_interface.get_device_state(devices_id=devices_list)
+        control_actions = ha_interface.get_control_actions(devices_state=devices_state, heat_pump_cop_models=heat_pump_cop_models)
+        ha_interface.execute_control_actions(control_actions=control_actions, devices_state=devices_state)
+
+    try:
+        # Execute one time on start
+        _main_loop()
+
+        # Schedule the job every 5 minutes
+        schedule.every(5).minutes.do(_main_loop)
+
+        # Run the scheduler in a loop
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by the user")
+
+    except Exception as ex:
+        logger.error("An error occurred: %s", ex, exc_info=True)
+
+    logger.info(
+        "Waiting 5 minutes before restarting the module, to avoid overloading the gdp server"
+    )
+    time.sleep(300)
+
+if __name__ == "__main__":
+    log_level = os.getenv("LOGLEVEL", "DEBUG").upper()
+    logging_format = (
+        "%(asctime)s [%(levelname)5s] %(message)s (%(filename)s:%(lineno)s)"
+    )
+    if os.getenv("LOCAL_LOG_FILE", False):
+        logging.basicConfig(
+            filename="logs/ha_hems_control.log",
+            level=log_level,
+            format=logging_format,
+            filemode="w",
+        )
+    else:
+        logging.basicConfig(level=log_level, format=logging_format)
+
+    main()
