@@ -4,6 +4,12 @@ This repository contains the HEMS (Home Energy Management System) implementation
 
 The repo is structured to hold the main control service, configurations, container build scripts and helpers for telemetry (telegraf) and time-series storage (TimescaleDB).
 
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+![Supports armhf Architecture][armhf-shield]
+![Supports armv7 Architecture][armv7-shield]
+![Supports i386 Architecture][i386-shield]
+
 ## Repository layout
 
 - `control/` — operational control artifacts and docs for deployments.
