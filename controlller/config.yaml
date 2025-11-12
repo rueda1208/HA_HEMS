@@ -1,6 +1,6 @@
 
 name: "Controller"
-slug: "HEMS controller"
+slug: "hems_controller"
 description: "Controller add-on for Home Energy Management System (HEMS)"
 image: "rueda1208/controller"
 version: "latest"
