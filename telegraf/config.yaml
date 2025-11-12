@@ -1,0 +1,21 @@
+name: "Telegraf"
+slug: "telegraf_configurable"
+description: "Telegraf add-on with modular configuration"
+image: "rueda1208/telegraf"
+version: "latest"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - i386
+boot: auto
+init: false
+startup: services
+host_network: true
+
+map:
+  - type: share           # This maps Host: /share -> Container: /share
+    read_only: false
+
+options: {}
+schema: {}
