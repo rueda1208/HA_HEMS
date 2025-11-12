@@ -3,7 +3,7 @@ import time
 import logging
 import schedule 
 
-import utils
+from utils import utils
 from ha_interface.ha_interface import HomeAssistantDeviceInterface
 
 # Set up logging

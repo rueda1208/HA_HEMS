@@ -1,0 +1,25 @@
+FROM python:3.11.0-slim-bullseye
+
+# Install Poetry tool
+RUN apt-get update
+RUN pip3 install poetry && poetry --version
+
+# Create working directory
+WORKDIR /workspaces
+
+# Copy the application source files 
+COPY ./src/main.py ./src/main.py
+
+# Copy the application config
+# COPY ../../config/server ./config
+
+# Copy the dependencies source files 
+COPY ./src/poetry.lock ./poetry.lock
+COPY ./src/poetry.toml ./poetry.toml
+COPY ./src/pyproject.toml ./pyproject.toml
+
+# Install the dependencies and create a virtual environment
+RUN poetry install
+
+# Run the Web server
+ENTRYPOINT ["poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "src.main:app"]

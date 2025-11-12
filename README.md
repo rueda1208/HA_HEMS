@@ -4,108 +4,50 @@ This repository contains the HEMS (Home Energy Management System) implementation
 
 The repo is structured to hold the main control service, configurations, container build scripts and helpers for telemetry (telegraf) and time-series storage (TimescaleDB).
 
-![Supports aarch64 Architecture][aarch64-shield]
-![Supports amd64 Architecture][amd64-shield]
-![Supports armhf Architecture][armhf-shield]
-![Supports armv7 Architecture][armv7-shield]
-![Supports i386 Architecture][i386-shield]
+## Prerequisites
+- Home Assistant OS / Supervised (Supervisor required for add-on install).
+- Administrator access to the Supervisor UI or SSH access to the host for manual installs.
+- **TimescaleDB Add-on**: This add-on provides a powerful time-series database solution for Home Assistant. It is designed to efficiently store and query time-series data, making it ideal for monitoring and analyzing energy usage patterns. For more details, visit the [TimescaleDB add-on repository](https://github.com/expaso/hassos-addons).
 
-## Repository layout
+### Install the TimescaleDB add-on
+1. Open Home Assistant → Settings → Add-on → Add-on store.
+2. Click the three-dot menu (top right) → Repositories.
+3. Add repository URL: `https://github.com/expaso/hassos-addons`
+4. The new add-ons appear in the Add-on store. Select the TimescaleDB add-on, click Install.
+5. Configure the add-on on its Configuration tab (follow the add-on’s documented options) and click Start.
+6. (Optional) Enable Start on boot and Show in sidebar as needed.
+7. Check Logs to verify startup and troubleshoot if required.
 
-- `control/` — operational control artifacts and docs for deployments.
-- `src/` — main source code and service implementation. The primary service is `ha_hems_control` located at `src/ha_hems_control`.
-- `telegraf/` — telegraf configuration and helpers for metrics collection.
-- `timescaledb/` — TimescaleDB helper scripts and configuration.
-- `docker/` — repository-level Docker build scripts and helpers.
-- `logs/` — runtime logs (gitignored in most setups).
-- `secrets/` — secrets templates and example `config.yaml` (ensure real secrets are stored securely).
-- `translations/` and `src/translations/` — translation files (e.g. `en.yaml`).
+For more information, see the [official TimescaleDB add-on documentation](https://github.com/expaso/hassos-addon-timescaledb/blob/v5.4.2/README.md).
 
-Key files:
+## Installation
 
-- `pyproject.toml`, `poetry.toml` — Python packaging and dependency management.
-- `src/ha_hems_control/main.py` — service entry point.
-- `src/ha_hems_control/ha_interface/ha_interface.py` — Home Assistant / integration interface.
-- `control/config.yaml`, `src/config.yaml`, `timescaledb/config.yaml` — configuration examples.
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Frueda1208%2FHA_HEMS)
 
-## Quick start (developer)
+or..
 
-Prerequisites:
+In the Home-Assistant add-on store, a possibility to add a repository is provided.
+Use the following URL to add this repository:
 
-- Python 3.10+ (use the version declared in `pyproject.toml`)
-- Poetry (optional, recommended for local dev)
-- Docker (for container builds and some runtimes)
-
-Run the main service locally (from repo root):
-
-```bash
-# from repository root
-cd src
-poetry install     # or install requirements into a venv
-poetry run python -m ha_hems_control.main
+```txt
+https://github.com/rueda1208/HA_HEMS
 ```
 
-If you don't use Poetry, create a virtual environment and run:
+## Available Add-ons
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt  # if present / or use poetry export
-python -m ha_hems_control.main
-```
+### [Telegraf][addon-telegraf]
+Telegraf is an open-source agent for collecting, processing, and sending metrics and events from various sources to different outputs. It is designed to be lightweight and efficient, making it an ideal choice for monitoring and analyzing energy usage data in conjunction with TimescaleDB. Telegraf supports a wide range of input and output plugins, allowing for flexible integration with various systems and services.
 
-Run with Docker:
+![aarch64][aarch64-shield] ![amd64][amd64-shield] ![armhf][armhf-shield] ![armv7][armv7-shield] ![i386][i386-shield]
 
-- Use the top-level docker build script to build images where applicable:
+### [Controller][addon-controller]
+The Controller add-on is designed to efficiently manage and orchestrate appliances and distributed energy resources (DERs) available within the dwelling. It provides a centralized interface for monitoring and controlling energy usage, ensuring optimal performance and integration of all connected devices. Additionally, it allows users to customize settings according to their preferences, enhancing user satisfaction by tailoring energy management to individual needs and habits.
 
-```bash
-./docker/build.sh
-```
-
-Some subfolders (e.g. `telegraf/`, `timescaledb/`) also include `run.sh` scripts for quick local runs or containerized setups.
-
-## Configuration
-
-Configuration files live in multiple places; preferences are:
-
-- `control/config.yaml` — control-plane configuration and deployment parameters.
-- `src/config.yaml` — configuration consumed by the Python service.
-- `secrets/config.yaml` — example secret values (do not commit real secrets).
-
-When deploying, ensure the service can read the appropriate configuration (via volume mounts or environment variables).
-
-## Logging & telemetry
-
-- Runtime logs are written to `logs/` by default (check service config to confirm paths).
-- Telegraf configurations are in `telegraf/` to collect metrics and forward to TimescaleDB or InfluxDB backends.
-
-## Translations
-
-English translations are located at `translations/en.yaml` and `src/translations/en.yaml` for service-level messages.
-
-## Development notes
-
-- Follow the project's `pyproject.toml` for dependency versions.
-- Use the `src/ha_hems_control` package layout for edits. Entry point is `main.py`.
-
-## Contributing
-
-Please open issues or PRs against the `main` branch. Keep changes small and test locally before submitting.
-
-## License
-
-See `LICENSE` at the repository root.
-
----
-
-If you'd like, I can also:
-
-- add a short `Makefile` or `dev/` scripts to simplify common developer flows (venv, run, lint),
-- generate a minimal `requirements.txt` exported from Poetry for users who don't use Poetry.
-
-Contact: maintainers and contributors are listed in the repo metadata.
+![aarch64][aarch64-shield] ![amd64][amd64-shield] ![armhf][armhf-shield] ![armv7][armv7-shield] ![i386][i386-shield]
 
 
+[addon-telegraf]: https://github.com/rueda1208/HA_HEMS/tree/main/telegraf
+[addon-controller]: https://github.com/rueda1208/HA_HEMS/tree/main/controller
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
 [armhf-shield]: https://img.shields.io/badge/armhf-yes-green.svg

@@ -1,11 +1,11 @@
 import os
 import yaml
-import utils
 import logging
 import numpy as np
-from typing import Union, Any, Dict, List
+from utils import utils
 from requests import get, post
 from abc import ABC, abstractmethod
+from typing import Union, Any, Dict, List
 
 logger = logging.getLogger(__name__)
 

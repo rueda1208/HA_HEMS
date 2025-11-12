@@ -34,7 +34,7 @@ def setup_logging(filename: str = "logger.log"):
 
 def update_config_with_zones(zones):
     """
-    Update the original config.yaml by adding new zones into space_heaters
+    Update the original config.yaml by adding new zones into hvac_systems
     (only if they don't already exist). Existing zones remain unchanged.
     
     :param zones: list of zone names (str)
@@ -44,11 +44,11 @@ def update_config_with_zones(zones):
     with open(CONFIG_FILE_PATH, "r") as f:
         config = yaml.safe_load(f)
     
-    # Extract existing space_heaters (or empty if missing)
-    space_heaters = config.get("space_heaters", {})
+    # Extract existing hvac_systems (or empty if missing)
+    hvac_systems = config.get("hvac_systems", {})
 
     # Collect existing zone names
-    existing_names = set(space_heaters.keys())
+    existing_names = set(hvac_systems.keys())
 
     # Default schedule template
     default_schedule = {
@@ -69,13 +69,13 @@ def update_config_with_zones(zones):
     # Add only new zones
     for zone in zones:
         if zone.startswith("climate.") and zone not in existing_names:
-            space_heaters[zone] = {
+            hvac_systems[zone] = {
                 "heat_pump_impact": False,
                 "schedule": copy.deepcopy(default_schedule)
             }
 
     # Update config
-    config["space_heaters"] = space_heaters
+    config["hvac_systems"] = hvac_systems
 
     # Overwrite the same file
     with open(CONFIG_FILE_PATH, "w") as f:
@@ -110,8 +110,8 @@ def select_zones_with_hp_impact() -> list:
     with open(CONFIG_FILE_PATH, "r") as f:
         config = yaml.safe_load(f)
 
-    space_heaters = config.get("space_heaters", {})
-    zones_with_hp_impact = [zone for zone, settings in space_heaters.items() if settings.get("heat_pump_impact", False)]
+    hvac_systems = config.get("hvac_systems", {})
+    zones_with_hp_impact = [zone for zone, settings in hvac_systems.items() if settings.get("heat_pump_impact", False)]
     return zones_with_hp_impact
 
 def get_target_temperature(zone_id: str) -> float:
@@ -119,8 +119,8 @@ def get_target_temperature(zone_id: str) -> float:
     with open(CONFIG_FILE_PATH, "r") as f:
         config = yaml.safe_load(f)
 
-    space_heaters = config.get("space_heaters", {})
-    zone_settings = space_heaters.get(zone_id, {})
+    hvac_systems = config.get("hvac_systems", {})
+    zone_settings = hvac_systems.get(zone_id, {})
     schedule = zone_settings.get("schedule", {})
     
 
