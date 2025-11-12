@@ -1,9 +1,9 @@
 
-name: "Control"
-slug: "Control"
-description: "Control add-on for Home Energy Management System (HEMS)"
-image: "rueda1208/Control"
-version: "1.0.0"
+name: "Controller"
+slug: "HEMS controller"
+description: "Controller add-on for Home Energy Management System (HEMS)"
+image: "rueda1208/controller"
+version: "latest"
 arch:
   - aarch64
   - amd64
