@@ -1,43 +1,104 @@
-# Example Home Assistant add-on repository
+# Home Energy Management System (HEMS)
 
-This repository can be used as a "blueprint" for add-on development to help you get started.
+This repository contains the HEMS (Home Energy Management System) implementation and related deployment artifacts.
 
-Add-on documentation: <https://developers.home-assistant.io/docs/add-ons>
+The repo is structured to hold the main control service, configurations, container build scripts and helpers for telemetry (telegraf) and time-series storage (TimescaleDB).
 
-[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fhome-assistant%2Faddons-example)
+## Repository layout
 
-## Add-ons
+- `control/` — operational control artifacts and docs for deployments.
+- `src/` — main source code and service implementation. The primary service is `ha_hems_control` located at `src/ha_hems_control`.
+- `telegraf/` — telegraf configuration and helpers for metrics collection.
+- `timescaledb/` — TimescaleDB helper scripts and configuration.
+- `docker/` — repository-level Docker build scripts and helpers.
+- `logs/` — runtime logs (gitignored in most setups).
+- `secrets/` — secrets templates and example `config.yaml` (ensure real secrets are stored securely).
+- `translations/` and `src/translations/` — translation files (e.g. `en.yaml`).
 
-This repository contains the following add-ons
+Key files:
 
-### [Example add-on](./example)
+- `pyproject.toml`, `poetry.toml` — Python packaging and dependency management.
+- `src/ha_hems_control/main.py` — service entry point.
+- `src/ha_hems_control/ha_interface/ha_interface.py` — Home Assistant / integration interface.
+- `control/config.yaml`, `src/config.yaml`, `timescaledb/config.yaml` — configuration examples.
 
-![Supports aarch64 Architecture][aarch64-shield]
-![Supports amd64 Architecture][amd64-shield]
-![Supports armhf Architecture][armhf-shield]
-![Supports armv7 Architecture][armv7-shield]
-![Supports i386 Architecture][i386-shield]
+## Quick start (developer)
 
-_Example add-on to use as a blueprint for new add-ons._
+Prerequisites:
 
-<!--
+- Python 3.10+ (use the version declared in `pyproject.toml`)
+- Poetry (optional, recommended for local dev)
+- Docker (for container builds and some runtimes)
 
-Notes to developers after forking or using the github template feature:
-- While developing comment out the 'image' key from 'example/config.yaml' to make the supervisor build the addon
-  - Remember to put this back when pushing up your changes.
-- When you merge to the 'main' branch of your repository a new build will be triggered.
-  - Make sure you adjust the 'version' key in 'example/config.yaml' when you do that.
-  - Make sure you update 'example/CHANGELOG.md' when you do that.
-  - The first time this runs you might need to adjust the image configuration on github container registry to make it public
-  - You may also need to adjust the github Actions configuration (Settings > Actions > General > Workflow > Read & Write)
-- Adjust the 'image' key in 'example/config.yaml' so it points to your username instead of 'home-assistant'.
-  - This is where the build images will be published to.
-- Rename the example directory.
-  - The 'slug' key in 'example/config.yaml' should match the directory name.
-- Adjust all keys/url's that points to 'home-assistant' to now point to your user/fork.
-- Share your repository on the forums https://community.home-assistant.io/c/projects/9
-- Do awesome stuff!
- -->
+Run the main service locally (from repo root):
+
+```bash
+# from repository root
+cd src
+poetry install     # or install requirements into a venv
+poetry run python -m ha_hems_control.main
+```
+
+If you don't use Poetry, create a virtual environment and run:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt  # if present / or use poetry export
+python -m ha_hems_control.main
+```
+
+Run with Docker:
+
+- Use the top-level docker build script to build images where applicable:
+
+```bash
+./docker/build.sh
+```
+
+Some subfolders (e.g. `telegraf/`, `timescaledb/`) also include `run.sh` scripts for quick local runs or containerized setups.
+
+## Configuration
+
+Configuration files live in multiple places; preferences are:
+
+- `control/config.yaml` — control-plane configuration and deployment parameters.
+- `src/config.yaml` — configuration consumed by the Python service.
+- `secrets/config.yaml` — example secret values (do not commit real secrets).
+
+When deploying, ensure the service can read the appropriate configuration (via volume mounts or environment variables).
+
+## Logging & telemetry
+
+- Runtime logs are written to `logs/` by default (check service config to confirm paths).
+- Telegraf configurations are in `telegraf/` to collect metrics and forward to TimescaleDB or InfluxDB backends.
+
+## Translations
+
+English translations are located at `translations/en.yaml` and `src/translations/en.yaml` for service-level messages.
+
+## Development notes
+
+- Follow the project's `pyproject.toml` for dependency versions.
+- Use the `src/ha_hems_control` package layout for edits. Entry point is `main.py`.
+
+## Contributing
+
+Please open issues or PRs against the `main` branch. Keep changes small and test locally before submitting.
+
+## License
+
+See `LICENSE` at the repository root.
+
+---
+
+If you'd like, I can also:
+
+- add a short `Makefile` or `dev/` scripts to simplify common developer flows (venv, run, lint),
+- generate a minimal `requirements.txt` exported from Poetry for users who don't use Poetry.
+
+Contact: maintainers and contributors are listed in the repo metadata.
+
 
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
