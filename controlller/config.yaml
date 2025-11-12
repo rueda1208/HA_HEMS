@@ -1,7 +1,7 @@
 
 name: "Controller"
 slug: "hems_controller"
-description: "Controller add-on for Home Energy Management System (HEMS)"
+description: "Expert System-Based Controller"
 image: "rueda1208/controller"
 version: "latest"
 arch:
