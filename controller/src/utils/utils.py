@@ -70,9 +70,14 @@ def update_config_with_zones(zones):
     for zone in zones:
         if zone.startswith("climate.") and zone not in existing_names:
             hvac_systems[zone] = {
-                "heat_pump_impact": False,
                 "schedule": copy.deepcopy(default_schedule)
             }
+            if "heat_pump" not in zone:
+                hvac_systems[zone].update({
+                    "heat_pump_impact": 0.0,
+                    "flexibility": 0.0,
+                    "preconditioning": False,
+                })
 
     # Update config
     config["hvac_systems"] = hvac_systems

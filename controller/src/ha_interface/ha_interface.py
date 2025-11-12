@@ -113,6 +113,9 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         # Select zones with heat pump impact
         zones_with_hp_impact = utils.select_zones_with_hp_impact()
         logger.debug(f"Zones with heat pump impact: {zones_with_hp_impact}")
+        if not zones_with_hp_impact:
+            logger.warning("No zones with heat pump impact found, no control actions will be determined.")
+            return {}
 
         # Determine and apply control actions
         zones_with_hp_impact_state = {}
@@ -153,6 +156,10 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             "headers": self._headers,
         }
 
+        if not control_actions:
+            logger.info("No control actions to execute")
+            return
+        
         for device_id, action in control_actions.items():
             if device_id == "heat_pump":
                 # Set heat pump mode 
