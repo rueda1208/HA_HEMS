@@ -55,14 +55,14 @@ def update_config_with_zones(zones):
     default_schedule = {
         "weekday": {
             "time_slots":{
-                "6h00-22h00":{"target_temp_F": 70, "target_temp_C": 21},
-                "22h00-6h00":{"target_temp_F": 65, "target_temp_C": 18},
+                "6h00-22h00":{"target_temp_C": 21},
+                "22h00-6h00":{"target_temp_C": 18},
             }
         },
         "weekend": {
             "time_slots": {
-                "8h00-23h00":{"target_temp_F": 72, "target_temp_C": 22},
-                "23h00-8h00":{"target_temp_F": 66, "target_temp_C": 19},
+                "8h00-23h00":{"target_temp_C": 22},
+                "23h00-8h00":{"target_temp_C": 19},
             }
         }
     }
@@ -70,15 +70,18 @@ def update_config_with_zones(zones):
     # Add only new zones
     for zone in zones:
         if zone.startswith("climate.") and zone not in existing_names:
-            hvac_systems[zone] = {
-                "schedule": copy.deepcopy(default_schedule)
-            }
             if "heat_pump" not in zone:
-                hvac_systems[zone].update({
+                hvac_systems[zone] = {
                     "heat_pump_impact": 0.0,
                     "flexibility": 0.0,
                     "preconditioning": False,
-                })
+                    "schedule": copy.deepcopy(default_schedule),
+                }
+            else:
+                hvac_systems[zone] = {
+                    "heating": {"schedule": copy.deepcopy(default_schedule)},
+                    "cooling": {"schedule": copy.deepcopy(default_schedule)},
+                }
 
     # Update config
     config["hvac_systems"] = hvac_systems
@@ -120,19 +123,25 @@ def select_zones_hp_impact(with_impact: bool) -> Dict:
     
     result = {}
     for zone, settings in hvac_systems.items():
-        impact = settings.get("heat_pump_impact", 0.0)
-        if (impact > 0.0) == with_impact:
-            result[zone] = settings.get("heat_pump_impact", 0.0)
+        if "heat_pump" in zone:
+            continue
+        else:
+            impact = settings.get("heat_pump_impact", 0.0)
+            if (impact > 0.0) == with_impact:
+                result[zone] = settings.get("heat_pump_impact", 0.0)
     return result
 
-def get_target_temperature(zone_id: str) -> float:
+def get_target_temperature(zone_id: str, hvac_mode:str | None = None) -> Union[float, None]:
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
         config = yaml.safe_load(f)
 
     hvac_systems = config.get("hvac_systems", {})
     zone_settings = hvac_systems.get(zone_id, {})
-    schedule = zone_settings.get("schedule", {})
+    if hvac_mode is None:
+        schedule = zone_settings.get("schedule", {})
+    else:
+        schedule = zone_settings.get(hvac_mode, {}).get("schedule", {})
     
 
     # Determine day type and current hour
