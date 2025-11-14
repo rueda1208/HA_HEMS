@@ -4,6 +4,7 @@ import copy
 import logging
 import numpy as np
 from datetime import datetime
+from typing import Union, Any, Dict, List
 from logging.handlers import TimedRotatingFileHandler
 
 CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "config/config.yaml")
@@ -110,14 +111,19 @@ def create_cop_model() -> float:
 
     return {"cool":cooling_cop_model,"heat":heating_cop_model}
 
-def select_zones_with_hp_impact() -> list:
+def select_zones_hp_impact(with_impact: bool) -> Dict:
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
         config = yaml.safe_load(f)
 
     hvac_systems = config.get("hvac_systems", {})
-    zones_with_hp_impact = [zone for zone, settings in hvac_systems.items() if settings.get("heat_pump_impact", False)]
-    return zones_with_hp_impact
+    
+    result = {}
+    for zone, settings in hvac_systems.items():
+        impact = settings.get("heat_pump_impact", 0.0)
+        if (impact > 0.0) == with_impact:
+            result[zone] = settings.get("heat_pump_impact", 0.0)
+    return result
 
 def get_target_temperature(zone_id: str) -> float:
     # Load config
