@@ -346,4 +346,4 @@ class HomeAssistantDeviceInterface(DeviceInterface):
 
         response = post(api_url, headers=headers, json=action)
         response.raise_for_status()
-        logger.info("Device %s requested to apply action %s", action["entity_id"], action)
+        logger.debug("Device %s requested to apply action %s", action["entity_id"], action)
