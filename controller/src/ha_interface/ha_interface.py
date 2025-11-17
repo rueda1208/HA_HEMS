@@ -91,6 +91,15 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
         # --------------------------------------------------------- #
+        gdp_events = utils.retrieve_gdp_events(mock=os.getenv("MOCK_GDP_EVENTS", "false").lower() == "true")
+        if gdp_events:
+            logger.info("GDP event detected, adjusting control strategy accordingly")
+        else:
+            logger.info("No GDP event detected, proceeding with normal control strategy")
+
+        # --------------------------------------------------------- #
+        # ---------------- Heat Pump Control Logic ---------------- #
+        # --------------------------------------------------------- #
         logger.debug("Determining control actions for heat pump impacted zones")
 
         # Calculate heat pump COP based on current outside temperature
@@ -121,7 +130,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         if not zones_with_hp_impact:
             logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
             control_actions = {}
-            hp_target_temperature = utils.get_target_temperature(zone_id="climate.heat_pump", hvac_mode=heat_pump_mode+"ing")
+            hp_target_temperature = utils.get_target_temperature(zone_id="climate.heat_pump", gdp_events=gdp_events, hvac_mode=heat_pump_mode+"ing")
             logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
             control_actions["heat_pump"] = {"state":heat_pump_mode, "setpoint": hp_target_temperature}
         else:
@@ -129,9 +138,11 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             zones_with_hp_impact_state = self._get_zone_metrics(
                 zones_to_check=zones_with_hp_impact,
                 devices_state=devices_state,
+                gdp_events=gdp_events,
                 )
             
             # Determine control actions for heat pump impacted zones
+            # TODO: Integrate preconditioning logic here in the future
             control_actions = self._control_logic_hp(
                 zones_with_hp_impact_state=zones_with_hp_impact_state,
                 heat_pump_mode=heat_pump_mode,
@@ -155,9 +166,11 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             zones_without_hp_impact_state = self._get_zone_metrics(
                 zones_to_check=zones_without_hp_impact_state,
                 devices_state=devices_state,
+                gdp_events=gdp_events,
                 )
             
             # Determine control actions for zones without heat pump impact
+            # TODO: Integrate preconditioning logic here in the future
             thermostat_control_actions = self._control_logic_thermostat(
                 zones_without_hp_impact_state=zones_without_hp_impact_state,
                 )
@@ -185,7 +198,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 if action["state"] == devices_state.get("climate.heat_pump", {}).get("state"):
                     logger.info("No change to heat pump state requested")
                 else:
-                    logger.info(f"Setting heat pump state to {action['state']} in {action['mode']} mode") 
+                    logger.info(f"Setting heat pump state to {action['state']}") 
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
                     params = {
                         "action": {"entity_id": "climate." + device_id, "hvac_mode": action["state"]},
@@ -232,7 +245,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == "heat":
-            if inside_temp < target_temp:
+            if inside_temp <= target_temp:
                 control_actions["heat_pump"]["setpoint"] = target_temp + 1
                 if heat_pump_cop >= 2.5:
                     for zone_id in zones_with_hp_impact_state.keys():
@@ -272,7 +285,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         return control_actions
     
     @staticmethod
-    def _get_zone_metrics(zones_to_check: Dict, devices_state:Dict[str, Any]) -> Dict[str, float]:
+    def _get_zone_metrics(zones_to_check: Dict, devices_state:Dict[str, Any], gdp_events:List[Dict[str, Any]]) -> Dict[str, float]:
         zone_metrics = {}
         for zone_id, hp_impact in zones_to_check.items():
             # Get current inside temperature
@@ -283,7 +296,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 continue
 
             # Get target temperature from user preferences
-            target_temperature = utils.get_target_temperature(zone_id=zone_id)
+            target_temperature = utils.get_target_temperature(zone_id=zone_id, gdp_events=gdp_events)
             logger.debug(f"Zone {zone_id} - Target temperature: {target_temperature} C")
             if target_temperature is None:
                 logger.warning(f"Target temperature for zone {zone_id} is None, skipping control action.")
@@ -293,7 +306,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             zone_metrics[zone_id] = {
                 "inside_temperature": inside_temperature,
                 "target_temperature": target_temperature,
-                 "heat_pump_impact": hp_impact,
+                "heat_pump_impact": hp_impact,
                 }
         return zone_metrics
 
