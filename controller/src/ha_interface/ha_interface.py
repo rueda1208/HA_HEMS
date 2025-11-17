@@ -9,7 +9,7 @@ from typing import Union, Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "./share/controller/config/config.yaml")
+CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "/share/controller/config/config.yaml")
 
 class DeviceInterface(ABC):
     @abstractmethod
@@ -34,7 +34,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
     _headers: str
 
     def __init__(self, host: str, port: int, token: str) -> None:
-        self._url_base = host + ":" + str(port) if port != 0 else host
+        self._url_base = host + ":" + str(int(port)) if port is not None else host
         self._headers = {"Authorization": f"Bearer {token}", "content-type": "application/json"}
 
     def get_devices_list(self) -> List[str]:

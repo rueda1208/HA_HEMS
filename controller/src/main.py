@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 
 HA_CREDENTIALS = {
     "host": os.getenv("HA_HOST", "http://supervisor/core"),
-    "port": int(os.getenv("HA_PORT", 8123)),
+    "port": os.getenv("HA_PORT"),
     "token": os.getenv('SUPERVISOR_TOKEN'),
 }
 
 def main() -> None:
-    logger.debug("Starting gdp events api module ...")
+    logger.debug("Starting controller module ...")
 
     # Retrieve the list of devices from Home Assistant.
     ha_interface = HomeAssistantDeviceInterface(**HA_CREDENTIALS)
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     )
     if os.getenv("LOCAL_LOG_FILE", False):
         logging.basicConfig(
-            filename="./share/controller/logs/controller.log",
+            filename="/share/controller/logs/controller.log",
             level=log_level,
             format=logging_format,
             filemode="w",

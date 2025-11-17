@@ -12,9 +12,6 @@ COPY ./controller/src/utils ./src/utils
 COPY ./controller/src/main.py ./src/main.py
 COPY ./controller/src/ha_interface ./src/ha_interface
 
-# Copy the application config files
-COPY ./config/controller ./config
-
 # Copy the dependencies source files 
 COPY ./controller/src/poetry.lock ./poetry.lock
 COPY ./controller/src/poetry.toml ./poetry.toml
