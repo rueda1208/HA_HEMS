@@ -76,9 +76,9 @@ hvac_systems:
   climate.th1124zb_g2:
     heat_pump_impact: 0.0
     flexibility:
-      upward: 0.0
-      downward: 0.0
-    preconditioning: false
+      upward: 2.0
+      downward: 2.0
+    preconditioning: true
     schedule:
       weekday:
         time_slots:
