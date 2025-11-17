@@ -15,4 +15,5 @@ startup: services
 host_network: false
 homeassistant_api: true
 environment:
+  LOGLEVEL: INFO
   TZ: America/Montreal

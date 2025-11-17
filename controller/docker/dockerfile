@@ -8,18 +8,21 @@ RUN pip3 install poetry && poetry --version
 WORKDIR /workspaces
 
 # Copy the application source files 
-COPY ./src/main.py ./src/main.py
+COPY ./controller/src/utils ./src/utils
+COPY ./controller/src/main.py ./src/main.py
+COPY ./controller/src/ha_interface ./src/ha_interface
 
-# Copy the application config
-# COPY ../../config/server ./config
+# Copy the application config files
+COPY ./config/controller ./config
 
 # Copy the dependencies source files 
-COPY ./src/poetry.lock ./poetry.lock
-COPY ./src/poetry.toml ./poetry.toml
-COPY ./src/pyproject.toml ./pyproject.toml
+COPY ./controller/src/poetry.lock ./poetry.lock
+COPY ./controller/src/poetry.toml ./poetry.toml
+COPY ./controller/src/pyproject.toml ./pyproject.toml
+COPY ./controller/src/README.md ./README.md
 
 # Install the dependencies and create a virtual environment
 RUN poetry install
 
 # Run the Web server
-ENTRYPOINT ["poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "src.main:app"]
+ENTRYPOINT ["poetry", "run", "python", "./src/main.py"]
