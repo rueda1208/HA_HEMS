@@ -9,7 +9,7 @@ from typing import Union, Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "config/config.yaml")
+CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "./share/controller/config/config.yaml")
 
 class DeviceInterface(ABC):
     @abstractmethod

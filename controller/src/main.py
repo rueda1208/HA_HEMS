@@ -7,7 +7,7 @@ from utils import utils
 from ha_interface.ha_interface import HomeAssistantDeviceInterface
 
 # Set up logging
-utils.setup_logging(filename="ha_hems_control.log")
+utils.setup_logging(filename="controller.log")
 logger = logging.getLogger(__name__)
 
 HA_CREDENTIALS = {
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     )
     if os.getenv("LOCAL_LOG_FILE", False):
         logging.basicConfig(
-            filename="logs/ha_hems_control.log",
+            filename="./share/controller/logs/controller.log",
             level=log_level,
             format=logging_format,
             filemode="w",

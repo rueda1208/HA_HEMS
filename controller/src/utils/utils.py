@@ -12,12 +12,12 @@ from typing import Union, Any, Dict, List
 from logging.handlers import TimedRotatingFileHandler
 
 logger = logging.getLogger(__name__)
-CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "config/config.yaml")
+CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "./share/controller/config/config.yaml")
 
 def setup_logging(filename: str = "logger.log"):
     # Create a TimedRotatingFileHandler
     file_handler = TimedRotatingFileHandler(
-        f"logs/{filename}",  # Base log file name
+        f"./share/controller/logs/{filename}",  # Base log file name
         when="midnight",  # Rotate log at midnight
         interval=1,  # Number of intervals before rotating (1 day here)
         backupCount=7,  # Keep logs for the last 7 days

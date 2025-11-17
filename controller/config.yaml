@@ -14,6 +14,9 @@ init: false
 startup: services
 host_network: false
 homeassistant_api: true
+map:
+  - type: share           # This maps Host: /share -> Container: /share
+    read_only: false
 environment:
   LOGLEVEL: INFO
   TZ: America/Montreal
