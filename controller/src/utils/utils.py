@@ -240,10 +240,10 @@ def retrieve_gdp_events(mock: bool | None=None) -> List[Dict[str, Any]]:
 
     # Check if there are any GDP events for today
     if gdp_events_data["total_count"] == 0:
-        logger.info("No GDP events found for today")
+        logger.debug("No GDP events available from Hydro-Quebec API")
         return []
     else:
-        logger.info("Retrieved %s GDP events", gdp_events_data["total_count"])
+        logger.debug("Retrieved %s GDP events", gdp_events_data["total_count"])
         today = datetime.now().date()
         today_events = [
             event
@@ -253,7 +253,7 @@ def retrieve_gdp_events(mock: bool | None=None) -> List[Dict[str, Any]]:
         ]
 
         if not today_events:
-            logger.info("No GDP events found for today")
+            logger.debug("No GDP events found for today")
         else:
             logger.debug(
                 "Todays's GDP events: %s", json.dumps(today_events, indent=4)
