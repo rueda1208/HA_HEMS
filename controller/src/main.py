@@ -17,7 +17,7 @@ HA_CREDENTIALS = {
 }
 
 def main() -> None:
-    logger.debug("Starting controller module ...")
+    logger.info("Starting controller module ...")
 
     # Retrieve the list of devices from Home Assistant.
     ha_interface = HomeAssistantDeviceInterface(**HA_CREDENTIALS)

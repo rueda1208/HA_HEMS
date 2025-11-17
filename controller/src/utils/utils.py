@@ -13,11 +13,12 @@ from logging.handlers import TimedRotatingFileHandler
 
 logger = logging.getLogger(__name__)
 CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "/share/controller/config/config.yaml")
+LOGS_DIR = os.getenv("LOGS_DIR", "/share/controller/logs")
 
 def setup_logging(filename: str = "logger.log"):
     # Create a TimedRotatingFileHandler
     file_handler = TimedRotatingFileHandler(
-        f"/share/controller/logs/{filename}",  # Base log file name
+        f"{LOGS_DIR}/{filename}",  # Base log file name
         when="midnight",  # Rotate log at midnight
         interval=1,  # Number of intervals before rotating (1 day here)
         backupCount=7,  # Keep logs for the last 7 days
@@ -30,8 +31,9 @@ def setup_logging(filename: str = "logger.log"):
     file_handler.setFormatter(formatter)
 
     # Configure the root logger
+    logger_level = os.getenv("LOGLEVEL", "DEBUG").upper()
     logging.basicConfig(
-        level=logging.DEBUG,  # Adjust the level as needed
+        level=logger_level,
         handlers=[
             file_handler,  # Log to file with rotation
             logging.StreamHandler(),  # Optionally log to console
@@ -95,7 +97,7 @@ def update_config_with_zones(zones):
     with open(CONFIG_FILE_PATH, "w") as f:
         yaml.dump(config, f, sort_keys=False, default_flow_style=False)
 
-    print(f"'{CONFIG_FILE_PATH}' updated successfully with new zones (if any).")
+    logger.debug(f"'{CONFIG_FILE_PATH}' updated successfully with new zones (if any).")
 
 def create_cop_model() -> float:
     # Load config

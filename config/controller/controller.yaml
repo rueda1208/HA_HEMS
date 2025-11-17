@@ -43,3 +43,242 @@ heat_pump_performance_specs:
         min: 1.8
         rated: 2.07
         max: 2.18
+hvac_systems:
+  climate.heat_pump:
+    heating:
+      schedule:
+        weekday:
+          time_slots:
+            6h00-22h00:
+              target_temp_C: 21
+            22h00-6h00:
+              target_temp_C: 18
+        weekend:
+          time_slots:
+            8h00-23h00:
+              target_temp_C: 22
+            23h00-8h00:
+              target_temp_C: 19
+    cooling:
+      schedule:
+        weekday:
+          time_slots:
+            6h00-22h00:
+              target_temp_C: 21
+            22h00-6h00:
+              target_temp_C: 18
+        weekend:
+          time_slots:
+            8h00-23h00:
+              target_temp_C: 22
+            23h00-8h00:
+              target_temp_C: 19
+  climate.th1124zb_g2:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_2:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_3:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_4:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_5:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_6:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_7:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_8:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_9:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_10:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19
+  climate.th1124zb_g2_11:
+    heat_pump_impact: 0.0
+    flexibility:
+      upward: 0.0
+      downward: 0.0
+    preconditioning: false
+    schedule:
+      weekday:
+        time_slots:
+          6h00-22h00:
+            target_temp_C: 21
+          22h00-6h00:
+            target_temp_C: 18
+      weekend:
+        time_slots:
+          8h00-23h00:
+            target_temp_C: 22
+          23h00-8h00:
+            target_temp_C: 19

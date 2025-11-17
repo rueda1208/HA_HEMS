@@ -22,11 +22,11 @@ class DeviceInterface(ABC):
 
 class MockDeviceInterface(DeviceInterface):
     def get(self, params: dict) -> float:
-        logger.info(f"Received get device state request: {params}")
+        logger.debug(f"Received get device state request: {params}")
         return 1.0
 
     def set(self, params: dict) -> None:
-        logger.info(f"Received set device state request: {params}")
+        logger.debug(f"Received set device state request: {params}")
 
 class HomeAssistantDeviceInterface(DeviceInterface):
     _host: str
@@ -100,7 +100,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
         # --------------------------------------------------------- #
-        logger.debug("Determining control actions for heat pump impacted zones")
+        logger.info("Determining control actions for heat pump impacted zones")
 
         # Calculate heat pump COP based on current outside temperature
         outside_temperature = devices_state["weather.home"]["temperature"]
@@ -122,7 +122,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         else:
             heat_pump_cop_model = heat_pump_cop_models[heat_pump_mode]
             heat_pump_cop = heat_pump_cop_model(outside_temperature)
-        logger.debug(f"Outside temperature: {outside_temperature} C, Heat Pump COP: {heat_pump_cop:.2f}")
+        logger.info(f"Outside temperature: {outside_temperature} C, Heat Pump COP: {heat_pump_cop:.2f}")
 
         # Select zones with heat pump impact
         zones_with_hp_impact = utils.select_zones_hp_impact(with_impact=True)
@@ -153,12 +153,13 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         # --------------------------------------------------------- #
         # ---------------- Thermostat Control Logic --------------- #
         # --------------------------------------------------------- #
-        logger.debug("Determining control actions for non-heat pump impacted zones")
+        logger.info("Determining control actions for non-heat pump impacted zones")
 
         # Select zones with heat pump impact
         zones_without_hp_impact_state = utils.select_zones_hp_impact(with_impact=False)
         logger.debug(f"Zones without heat pump impact: {zones_without_hp_impact_state}")
         if not zones_without_hp_impact_state:
+            thermostat_control_actions = {}
             logger.info("No zones without heat pump impact found, skipping thermostat control logic.")
             return control_actions
         else:
@@ -176,9 +177,9 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 )
             logger.debug(f"Thermostat setpoint for non-heat pump impacted zones: {thermostat_control_actions}")
             
-            # Merge control actions
-            control_actions.update(thermostat_control_actions)
-            logger.debug(f"Final control actions: {control_actions}")
+        # Merge control actions
+        control_actions.update(thermostat_control_actions)
+        logger.debug(f"Final control actions: {control_actions}")
 
         return control_actions
 
@@ -196,7 +197,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             if device_id == "heat_pump":
                 # Set heat pump mode 
                 if action["state"] == devices_state.get("climate.heat_pump", {}).get("state"):
-                    logger.info("No change to heat pump state requested")
+                    logger.info(f"No change to heat pump state requested (remains {action['state']})")
                 else:
                     logger.info(f"Setting heat pump state to {action['state']}") 
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
@@ -211,7 +212,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 else:
                     setpoint = action["setpoint"]
                     if setpoint == devices_state.get("climate.heat_pump", {}).get("temperature"):
-                        logger.info("No change to heat pump setpoint requested")
+                        logger.info(f"No change to heat pump setpoint requested (remains {setpoint} C)")
                     else:
                         logger.info(f"Setting heat pump setpoint to {setpoint} C")
                         credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
@@ -222,7 +223,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             else:
                 # Set zone temperature setpoint
                 if action == devices_state.get(device_id, {}).get("temperature"):
-                    logger.info(f"No change to zone {device_id} temperature requested")
+                    logger.info(f"No change to zone {device_id} temperature requested (remains {action} C)")
                 else:
                     logger.info(f"Setting zone {device_id} temperature to {action} C")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
@@ -319,7 +320,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
 
         response = get(api_url, headers=headers, proxies={"http": None})
         response.raise_for_status()
-        logger.info("Device %s state successfully retrieved", params["device"])
+        logger.debug("Device %s state successfully retrieved", params["device"])
 
         device_state = {}
         for state_to_get in states_list:
@@ -328,7 +329,6 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             else:
                 dummy_device_state = response.json().get("attributes", {}).get(state_to_get, None)
         
-            # logger.debug(f"Device {params['device']} - {state_to_get}: {dummy_device_state}")
             if isinstance(dummy_device_state, str):
                 device_state[state_to_get] = dummy_device_state.lower()
             elif isinstance(dummy_device_state, (int, float)):
