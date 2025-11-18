@@ -2,14 +2,30 @@ import os
 import yaml
 import logging
 import numpy as np
+import pandas as pd
 from utils import utils
 from requests import get, post
 from abc import ABC, abstractmethod
+from sqlalchemy import create_engine
 from typing import Union, Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
+# Get configuration file path
 CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "/share/controller/config/config.yaml")
+
+# Get TimescaleDB connection parameters
+POSTGRES_DB_NAME = os.getenv("POSTGRES_NAME", "homeassistant")
+POSTGRES_DB_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_DB_HOST = os.getenv("POSTGRES_HOST", "77b2833f-timescaledb")
+POSTGRES_DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "homeassistant")
+
+# Create database connection URL
+db_url = f"postgresql://{POSTGRES_DB_USER}:{POSTGRES_DB_PASSWORD}@{POSTGRES_DB_HOST}:{POSTGRES_DB_PORT}/{POSTGRES_DB_NAME}"
+
+# Create SQLAlchemy engine
+postgres_db_engine = create_engine(db_url)
 
 class DeviceInterface(ABC):
     @abstractmethod
@@ -347,3 +363,27 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         response = post(api_url, headers=headers, json=action)
         response.raise_for_status()
         logger.debug("Device %s requested to apply action %s", action["entity_id"], action)
+        HomeAssistantDeviceInterface._save_control_actions(control_actions=action)
+
+    @staticmethod
+    def _save_control_actions(control_actions: Dict[str, Any]) -> None:
+        control_actions_to_save = pd.DataFrame(
+            data=[  # Single row of data
+                ["control"]
+                + [control_actions.get("entity_id", "unknown").split(".")[1]]
+                + [control_actions.get("temperature", np.nan)]
+            ],
+            index=[
+                pd.Timestamp.now(tz="UTC").replace(microsecond=0)
+            ],  # Single timestamp index
+            columns=["_type","zone","setpoint"], # Column names
+        )
+        # Set the index name to 'time'
+        control_actions_to_save.index.name = "time"
+
+        # Save to TimescaleDB
+        control_actions_to_save.to_sql(
+            name="space_heating",
+            con=postgres_db_engine,
+            if_exists="append",
+        )
