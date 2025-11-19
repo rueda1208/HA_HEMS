@@ -387,3 +387,4 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             con=postgres_db_engine,
             if_exists="append",
         )
+        logger.info("Control actions saved to TimescaleDB")

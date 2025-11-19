@@ -42,6 +42,7 @@ def main() -> None:
         _main_loop()
 
         # Schedule the job every 5 minutes
+        # TODO: Update to every 5 minutes, but staring at 00, 05, 10, etc.
         schedule.every(5).minutes.do(_main_loop)
 
         # Run the scheduler in a loop
