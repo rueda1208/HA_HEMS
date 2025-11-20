@@ -319,6 +319,11 @@ def _get_mock_gdp_events() -> List[Dict[str, Any]]:
         event_date = datetime.date.fromisoformat(config_gdp_events["date"])
         plage = config_gdp_events["plage"].upper()
 
+        # Check if the mock event date matches today's date
+        if event_date != datetime.datetime.now().date():
+            logger.debug("Mock GDP event date does not match today's date")
+            return []
+
         # Define AM / PM time windows
         def fmt(dt):
             return dt.isoformat() + "+00:00"
