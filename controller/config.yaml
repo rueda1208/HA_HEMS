@@ -20,3 +20,11 @@ map:
 environment:
   LOGLEVEL: INFO
   TZ: America/Montreal
+options:
+  gdp_events:
+    date: "2025-12-01"
+    plage: "AM/PM"     # AM, PM, AM/PM
+schema:
+  gdp_events:
+    date: str
+    plage: str

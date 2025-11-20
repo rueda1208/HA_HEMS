@@ -5,9 +5,8 @@ import json
 import time 
 import logging
 import requests
+import datetime
 import numpy as np
-from datetime import datetime
-from datetime import datetime, timedelta
 from typing import Union, Any, Dict, List
 from logging.handlers import TimedRotatingFileHandler
 
@@ -153,7 +152,7 @@ def get_target_temperature(zone_id: str, gdp_events: List[Dict[str, Any]], hvac_
         schedule = zone_settings.get(hvac_mode, {}).get("schedule", {})
 
     # Determine day type and current hour
-    now = datetime.now()
+    now = datetime.datetime.now()
     current_hour = now.hour
     current_minute = now.minute
     current_day_type = "weekday" if now.weekday() < 5 else "weekend"
@@ -245,20 +244,12 @@ def conditioning_ramping(current_minute: float, current_value: float, target_val
     
     return round(y - current_value,2)
 
-def retrieve_gdp_events(mock: bool | None=None) -> List[Dict[str, Any]]:
-    # Retrieve GDP events from Hydro-Quebec API
-    if mock:
-        logger.info("Using mock GDP events data")
-        today = datetime.now().date()
-        gdp_events_data = {
-            "total_count": 1,
-            "results": [
-                {"datedebut": f"{today}T11:00:00+00:00", "datefin": f"{today}T14:00:00+00:00", "plagehoraire": "AM"},
-                {"datedebut": f"{today}T21:00:00+00:00", "datefin": f"{today+timedelta(days=1)}T01:00:00+00:00", "plagehoraire": "PM"},
-            ]
-        }
+def retrieve_gdp_events() -> List[Dict[str, Any]]:
+    # Retrieve GDP events from Hydro-Quebec API or mock data
+    gdp_events_data = _get_mock_gdp_events()
+    if gdp_events_data:
         return gdp_events_data["results"]
-    
+        
     # Define the API endpoint
     api_url = os.getenv("HQ_API_URL", "https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/evenements-pointe/records")
 
@@ -295,11 +286,11 @@ def retrieve_gdp_events(mock: bool | None=None) -> List[Dict[str, Any]]:
         return []
     else:
         logger.debug("Retrieved %s GDP events", gdp_events_data["total_count"])
-        today = datetime.now().date()
+        today = datetime.datetime.now().date()
         today_events = [
             event
             for event in gdp_events_data["results"]
-            if datetime.strptime(event["datedebut"], "%Y-%m-%dT%H:%M:%S%z").date()
+            if datetime.datetime.strptime(event["datedebut"], "%Y-%m-%dT%H:%M:%S%z").date()
             == today
         ]
 
@@ -310,3 +301,55 @@ def retrieve_gdp_events(mock: bool | None=None) -> List[Dict[str, Any]]:
                 "Todays's GDP events: %s", json.dumps(today_events, indent=4)
             )
         return today_events
+    
+def _get_mock_gdp_events() -> List[Dict[str, Any]]:
+    # Load configuration
+    with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
+        options_data = json.load(file_path)
+
+    config_gdp_events = options_data["gdp_events"][0]
+    
+    if not config_gdp_events:
+        # No mock GDP events specified in config
+        logger.debug("No mock GDP events data found in config.yaml")
+        return []
+    else:
+        # Use mock GDP events from config
+        logger.debug("Using mock GDP events data from config.yaml")
+        event_date = datetime.date.fromisoformat(config_gdp_events["date"])
+        plage = config_gdp_events["plage"].upper()
+
+        # Define AM / PM time windows
+        def fmt(dt):
+            return dt.isoformat() + "+00:00"
+
+        AM_START = datetime.time(11, 0, 0)
+        AM_END   = datetime.time(14, 0, 0)
+
+        PM_START = datetime.time(21, 0, 0)
+        PM_END   = datetime.time(1, 0, 0)
+
+        results = []
+
+        if plage in ("AM", "AM/PM"):
+            results.append({
+                "datedebut": fmt(datetime.datetime.combine(event_date, AM_START)),
+                "datefin":   fmt(datetime.datetime.combine(event_date, AM_END)),
+                "plagehoraire": "AM"
+            })
+
+        if plage in ("PM", "AM/PM"):
+            # PM crosses midnight → end is next day
+            end_date = event_date + datetime.timedelta(days=1)
+            results.append({
+                "datedebut": fmt(datetime.datetime.combine(event_date, PM_START)),
+                "datefin":   fmt(datetime.datetime.combine(end_date, PM_END)),
+                "plagehoraire": "PM"
+            })
+
+        gdp_events_data = {
+            "total_count": len(results),
+            "results": results,
+        }
+
+        return gdp_events_data

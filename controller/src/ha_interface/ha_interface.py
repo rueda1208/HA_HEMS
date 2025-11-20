@@ -107,7 +107,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
         # --------------------------------------------------------- #
-        gdp_events = utils.retrieve_gdp_events(mock=os.getenv("MOCK_GDP_EVENTS", "false").lower() == "true")
+        gdp_events = utils.retrieve_gdp_events()
         if gdp_events:
             logger.info("GDP event detected, adjusting control strategy accordingly")
         else:
