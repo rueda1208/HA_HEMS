@@ -307,7 +307,7 @@ def _get_mock_gdp_events() -> List[Dict[str, Any]]:
     with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
         options_data = json.load(file_path)
 
-    config_gdp_events = options_data["gdp_events"][0]
+    config_gdp_events = options_data["gdp_events"]
     
     if not config_gdp_events:
         # No mock GDP events specified in config
