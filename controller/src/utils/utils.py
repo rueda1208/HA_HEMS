@@ -227,7 +227,7 @@ def get_target_temperature(zone_id: str, gdp_events: List[Dict[str, Any]], hvac_
             ) or 0.0
             target_temperature = conditioning_ramping(
                 ramping_time = int(post_event_recovery_timestamp_dict["end_timestamp"] - post_event_recovery_timestamp_dict["start_timestamp"]),
-                current_timestamp = current_timestamp,
+                elapsed_time = int(current_timestamp - post_event_recovery_timestamp_dict["start_timestamp"]),
                 initial_value = init_zone_temperature_after_gdp_event,
                 target_value = max_target_temperature_post_event_recovery, # No flexibility during recovery, just return to target
             )
