@@ -286,7 +286,7 @@ def retrieve_gdp_events() -> List[Dict[str, Any]]:
     params = {
         "select": "datedebut,datefin,plagehoraire",
         "where": 'offre="CPC-D"',
-        "order_by": "datedebut ASC",
+        "order_by": "datedebut DESC",
         "limit": 20,
     }
 
