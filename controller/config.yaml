@@ -22,8 +22,9 @@ environment:
   TZ: America/Montreal
 options:
   gdp_events:
-    date: "1999-12-01"
-    time_spec: "AM/PM"     # Allowed: AM, PM, AM/PM, or at a specific hour in America/Montreal timezone (e.g., 11h or 14:30)"
+    date:
+      description: "Date of the GDP event in YYYY-MM-DD format"
+    time_spec:
       description: "Allowed values: AM, PM, AM/PM, or specific hour in America/Montreal timezone (e.g., 11h or 14:30)"
 schema:
   gdp_events:
