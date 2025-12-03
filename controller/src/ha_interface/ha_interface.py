@@ -263,7 +263,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == "heat":
             if inside_temp <= target_temp:
-                control_actions["heat_pump"]["setpoint"] = target_temp + 1
+                control_actions["heat_pump"]["setpoint"] = target_temp + 2
                 if heat_pump_cop >= 2.5:
                     for zone_id in zones_with_hp_impact_state.keys():
                         control_actions[zone_id] = target_temp - 1  # Slightly lower setpoint for zones
@@ -271,7 +271,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                     for zone_id in zones_with_hp_impact_state.keys():
                         control_actions[zone_id] = target_temp # Use auxiliary heating (e.g., electric baseboards)
             else:
-                control_actions["heat_pump"]["setpoint"] = target_temp # Use heat pump only
+                control_actions["heat_pump"]["setpoint"] = target_temp + 1 # Use heat pump only
                 for zone_id in zones_with_hp_impact_state.keys():
                     control_actions[zone_id] = target_temp - 2  # Turn off auxiliary heating
 
