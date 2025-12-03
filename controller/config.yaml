@@ -23,13 +23,11 @@ environment:
 options:
   gdp_events:
     date:
-      value: "1999-12-01"
       description: "Date of the GDP event in YYYY-MM-DD format"
     time_spec:
-      value: "AM/PM"
       description: "Allowed values: AM, PM, AM/PM, or specific hour in America/Montreal timezone (e.g., 11h or 14:30)"
 schema:
   gdp_events:
-    date:  match(^\d{4}-\d{2}-\d{2}$)?
-    time_spec: match(AM|PM|AM/PM|^\d{1,2}h$|^\d{1,2}:\d{2}$)?
+    date:  str
+    time_spec: str
       
