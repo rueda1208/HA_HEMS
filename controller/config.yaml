@@ -31,4 +31,4 @@ schema:
       description: "Date of the GDP event in YYYY-MM-DD format"
     time_spec:
       type: str
-      description: "Allowed values: AM, PM, AM/PM, or specific hour in America/Montreal timezone (e.g., '11h' or '14:30')"
+      description: "Allowed values: AM, PM, AM/PM, or specific hour in America/Montreal timezone (e.g., 11h or 14:30)"
