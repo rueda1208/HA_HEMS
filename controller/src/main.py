@@ -42,8 +42,18 @@ def main() -> None:
         _main_loop()
 
         # Schedule the job every 5 minutes
-        # TODO: Update to every 5 minutes, but staring at 00, 05, 10, etc.
-        schedule.every(5).minutes.do(_main_loop)
+        schedule.every().hour.at(":00").do(_main_loop)
+        schedule.every().hour.at(":05").do(_main_loop)
+        schedule.every().hour.at(":10").do(_main_loop)
+        schedule.every().hour.at(":15").do(_main_loop)
+        schedule.every().hour.at(":20").do(_main_loop)
+        schedule.every().hour.at(":25").do(_main_loop)
+        schedule.every().hour.at(":30").do(_main_loop)
+        schedule.every().hour.at(":35").do(_main_loop)
+        schedule.every().hour.at(":40").do(_main_loop)
+        schedule.every().hour.at(":45").do(_main_loop)
+        schedule.every().hour.at(":50").do(_main_loop)
+        schedule.every().hour.at(":55").do(_main_loop)
 
         # Run the scheduler in a loop
         while True:
