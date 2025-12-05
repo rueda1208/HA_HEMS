@@ -262,14 +262,17 @@ def get_target_from_schedule(current_hour: int, current_day_type: str, schedule:
     return None  # Default if no schedule found
 
 def conditioning_ramping(ramping_time:int, elapsed_time: int, initial_value:float, target_value: float) -> float:
-    # Clamp elapsed time between 0 and ramping_time
+    # Shorten ramping time by 15 minutes to reach target earlier and heat/cool more efficiently
+    ramping_time_short = ramping_time-900 
+
+    # Clamp elapsed time between 0 and ramping_time_short
     if elapsed_time <= 0:
         return round(initial_value, 2)
-    if elapsed_time >= ramping_time:
+    if elapsed_time >= ramping_time_short:
         return round(target_value, 2)
         
     # Linear interpolation
-    ratio = elapsed_time / ramping_time
+    ratio = elapsed_time / ramping_time_short
     y = initial_value + (target_value - initial_value) * ratio
     return round(y, 2)
 
@@ -388,7 +391,7 @@ def _get_mock_gdp_events() -> List[Dict[str, Any]]:
             date_debut_utc = date_debut.astimezone(datetime.timezone.utc)
             results.append({
                 "datedebut": date_debut_utc.isoformat(),
-                "datefin":   (date_debut_utc + datetime.timedelta(hours=3)).isoformat(),
+                "datefin":   (date_debut_utc + datetime.timedelta(hours=4)).isoformat(),
                 "plagehoraire": None
             })
 
@@ -397,7 +400,7 @@ def _get_mock_gdp_events() -> List[Dict[str, Any]]:
             hour, minute = [int(x) for x in plage.split(":")]
             results.append({
                 "datedebut": fmt(datetime.datetime.combine(event_date, datetime.time(hour, minute))),
-                "datefin":   fmt(datetime.datetime.combine(event_date, datetime.time(hour, minute)) + datetime.timedelta(hours=3)),
+                "datefin":   fmt(datetime.datetime.combine(event_date, datetime.time(hour, minute)) + datetime.timedelta(hours=4)),
                 "plagehoraire": None
             })
 
