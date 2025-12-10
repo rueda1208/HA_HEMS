@@ -371,12 +371,13 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             data=[  # Single row of data
                 ["control"]
                 + [control_actions.get("entity_id", "unknown").split(".")[1]]
+                + ["setpoint"]
                 + [control_actions.get("temperature", np.nan)]
             ],
             index=[
                 pd.Timestamp.now(tz="UTC").replace(microsecond=0)
             ],  # Single timestamp index
-            columns=["_type","zone","setpoint"], # Column names
+            columns=["_type","zone","name","value"], # Column names
         )
         # Set the index name to 'time'
         control_actions_to_save.index.name = "time"
