@@ -21,7 +21,7 @@ cd "$PROJECT_ROOT"
 BUILD_TYPE="${1:-normal}"
 
 IMAGE_NAME="rueda1208/controller"
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 if [ "$BUILD_TYPE" = "multi" ]; then
   echo "Building and pushing multi-architecture image..."
@@ -30,6 +30,7 @@ if [ "$BUILD_TYPE" = "multi" ]; then
     -f controller/docker/Dockerfile \
     -t ${IMAGE_NAME}:${VERSION} \
     -t ${IMAGE_NAME}:latest \
+    --no-cache \
     --push .
 else
   echo "Building normal image for current platform..."
@@ -37,6 +38,7 @@ else
     -f controller/docker/Dockerfile \
     -t ${IMAGE_NAME}:${VERSION} \
     -t ${IMAGE_NAME}:latest \
+    --no-cache \
     --push .
 fi
 
