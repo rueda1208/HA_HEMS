@@ -126,7 +126,7 @@ def select_zones_hp_impact(with_impact: bool) -> Dict:
     with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
         options_data = json.load(file_path)
 
-    heat_pump_enabled = options_data.get("heat_pump_enabled", "true").lower() == "true"
+    heat_pump_enabled = options_data.get("heat_pump_enabled", False)
 
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
@@ -318,6 +318,9 @@ def retrieve_gdp_events() -> List[Dict[str, Any]]:
                 time.sleep(1)
         except Exception as ex:
             logger.error("An error occurred: %s", ex, exc_info=True)
+            gdp_events_data = {}
+            gdp_events_data["total_count"] = 0
+            gdp_events_data["results"] = []
             attempts += 1
             time.sleep(1)
 
