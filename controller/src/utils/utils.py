@@ -122,6 +122,12 @@ def create_cop_model() -> float:
     return {"cool":cooling_cop_model,"heat":heating_cop_model}
 
 def select_zones_hp_impact(with_impact: bool) -> Dict:
+    # Load configuration
+    with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
+        options_data = json.load(file_path)
+
+    heat_pump_enabled = options_data.get("heat_pump_enabled", "true").lower() == "true"
+
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
         config = yaml.safe_load(f)
@@ -133,9 +139,12 @@ def select_zones_hp_impact(with_impact: bool) -> Dict:
         if "heat_pump" in zone:
             continue
         else:
-            impact = settings.get("heat_pump_impact", 0.0)
-            if (impact > 0.0) == with_impact:
-                result[zone] = settings.get("heat_pump_impact", 0.0)
+            if not heat_pump_enabled and not with_impact:
+                result[zone] = 0.0
+            else:
+                impact = settings.get("heat_pump_impact", 0.0)
+                if (impact > 0.0) == with_impact:
+                    result[zone] = settings.get("heat_pump_impact", 0.0)
     return result
 
 def get_target_temperature(zone_id: str, gdp_events: List[Dict[str, Any]], hvac_mode: str | None = None) -> Union[float, None]:

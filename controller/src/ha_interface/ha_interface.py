@@ -1,5 +1,6 @@
 import os
 import yaml
+import json
 import logging
 import numpy as np
 import pandas as pd
@@ -105,7 +106,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
 
     def get_control_actions(self, devices_state: Dict[str, Any], heat_pump_cop_models:np.poly1d) -> Dict[str, Any]:
         # --------------------------------------------------------- #
-        # ---------------- Heat Pump Control Logic ---------------- #
+        # ---------------- GDP Event Retrieval Logic --------------- #
         # --------------------------------------------------------- #
         gdp_events = utils.retrieve_gdp_events()
         if gdp_events:
@@ -113,6 +114,14 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         else:
             logger.info("No GDP event detected, proceeding with normal control strategy")
 
+        # --------------------------------------------------------- #
+        # ---------------- Heat Pump Enabled Check ------------------ #
+        # --------------------------------------------------------- #
+        with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
+            options_data = json.load(file_path)
+
+        heat_pump_enabled = options_data.get("heat_pump_enabled", "true").lower() == "true"
+        
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
         # --------------------------------------------------------- #
@@ -144,11 +153,16 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         zones_with_hp_impact = utils.select_zones_hp_impact(with_impact=True)
         logger.debug(f"Zones with heat pump impact: {list(zones_with_hp_impact.keys())}")
         if not zones_with_hp_impact:
-            logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
-            control_actions = {}
-            hp_target_temperature = utils.get_target_temperature(zone_id="climate.heat_pump", gdp_events=gdp_events, hvac_mode=heat_pump_mode+"ing")
-            logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
-            control_actions["heat_pump"] = {"state":heat_pump_mode, "setpoint": hp_target_temperature}
+            if not heat_pump_enabled:
+                logger.warning("Heat pump is disabled in configuration. Skipping heat pump control logic.")
+                control_actions = {}
+                control_actions["heat_pump"] = {"state":"off", "setpoint": None}
+            else:
+                logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
+                control_actions = {}
+                hp_target_temperature = utils.get_target_temperature(zone_id="climate.heat_pump", gdp_events=gdp_events, hvac_mode=heat_pump_mode+"ing")
+                logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
+                control_actions["heat_pump"] = {"state":heat_pump_mode, "setpoint": hp_target_temperature}
         else:
             # Get state information for zones with heat pump impact
             zones_with_hp_impact_state = self._get_zone_metrics(
