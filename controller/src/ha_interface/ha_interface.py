@@ -120,7 +120,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
             options_data = json.load(file_path)
 
-        heat_pump_enabled = options_data.get("heat_pump_enabled", "true").lower() == "true"
+        heat_pump_enabled = options_data.get("heat_pump_enabled", False)
         
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
