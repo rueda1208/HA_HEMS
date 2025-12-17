@@ -382,8 +382,9 @@ class HomeAssistantDeviceInterface(DeviceInterface):
     @staticmethod
     def _save_control_actions(control_actions: Dict[str, Any]) -> None:
         if "hvac_mode" in control_actions:
+            mapping = {"off": 0, "heat": 1, "cool": 2, "auto": 3, "dry": 4, "fan_only": 5, "unknown": np.nan}
             action_name = "hvac_mode"
-            action_value = control_actions.get("hvac_mode", "unknown")
+            action_value = mapping.get(control_actions.get("hvac_mode", "unknown"), np.nan)
         elif "temperature" in control_actions:
             action_name = "setpoint"
             action_value = control_actions.get("temperature", np.nan)
