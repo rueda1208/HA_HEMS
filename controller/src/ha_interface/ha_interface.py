@@ -121,9 +121,8 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             options_data = json.load(file_path)
 
         heat_pump_enabled = options_data.get("heat_pump_enabled", False)
-        if heat_pump_enabled:
-            logger.info("Heat pump is enabled in configuration")
-        else:
+        logger.debug(f"Heat pump enabled option from configuration: {heat_pump_enabled}")
+        if not heat_pump_enabled:
             logger.warning("Heat pump is disabled in configuration")
         
         # --------------------------------------------------------- #

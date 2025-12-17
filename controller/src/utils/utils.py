@@ -136,15 +136,24 @@ def select_zones_hp_impact(with_impact: bool) -> Dict:
     
     result = {}
     for zone, settings in hvac_systems.items():
+        # Skip heat pump itself
         if "heat_pump" in zone:
             continue
-        else:
-            if not heat_pump_enabled and not with_impact:
-                result[zone] = 0.0
-            else:
-                impact = settings.get("heat_pump_impact", 0.0)
-                if (impact > 0.0) == with_impact:
-                    result[zone] = settings.get("heat_pump_impact", 0.0)
+        
+        # Get heat pump impact setting
+        impact = settings.get("heat_pump_impact", 0.0)
+
+        # Heat pump disabled
+        if not heat_pump_enabled:
+            if with_impact:
+                continue
+            result[zone] = 0.0
+            continue
+
+        # Heat pump enabled
+        if (impact > 0.0) == with_impact:
+            result[zone] = impact
+
     return result
 
 def get_target_temperature(zone_id: str, gdp_events: List[Dict[str, Any]], hvac_mode: str | None = None) -> Union[float, None]:
