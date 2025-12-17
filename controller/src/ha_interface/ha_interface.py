@@ -381,12 +381,22 @@ class HomeAssistantDeviceInterface(DeviceInterface):
 
     @staticmethod
     def _save_control_actions(control_actions: Dict[str, Any]) -> None:
+        if "hvac_mode" in control_actions:
+            action_name = "hvac_mode"
+            action_value = control_actions.get("hvac_mode", "unknown")
+        elif "temperature" in control_actions:
+            action_name = "setpoint"
+            action_value = control_actions.get("temperature", np.nan)
+        else:
+            logger.warning("No valid control action to save")
+            return
+        
         control_actions_to_save = pd.DataFrame(
             data=[  # Single row of data
                 ["control"]
                 + [control_actions.get("entity_id", "unknown").split(".")[1]]
-                + ["setpoint"]
-                + [control_actions.get("temperature", np.nan)]
+                + [action_name]
+                + [action_value]
             ],
             index=[
                 pd.Timestamp.now(tz="UTC").replace(microsecond=0)

@@ -21,7 +21,7 @@ cd "$PROJECT_ROOT"
 BUILD_TYPE="${1:-normal}"
 
 IMAGE_NAME="rueda1208/controller"
-VERSION="1.1.1"
+VERSION="1.1.2"
 
 if [ "$BUILD_TYPE" = "multi" ]; then
   echo "Building and pushing multi-architecture image..."
