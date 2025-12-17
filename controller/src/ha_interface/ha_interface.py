@@ -121,9 +121,6 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             options_data = json.load(file_path)
 
         heat_pump_enabled = options_data.get("heat_pump_enabled", False)
-        logger.debug(f"Heat pump enabled option from configuration: {heat_pump_enabled}")
-        if not heat_pump_enabled:
-            logger.warning("Heat pump is disabled in configuration")
         
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
@@ -228,7 +225,6 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         
         for device_id, action in control_actions.items():
             if device_id == "heat_pump":
-                logger.info(f"Control actions for heat pump: {action}")
                 # Set heat pump mode 
                 if action["state"] == devices_state.get("climate.heat_pump", {}).get("state"):
                     logger.info(f"No change to heat pump state requested (remains {action['state']})")
