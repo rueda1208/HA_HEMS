@@ -314,6 +314,9 @@ def retrieve_gdp_events() -> List[Dict[str, Any]]:
                 logger.error(
                     "Error while retrieving GDP events data: %s", response.text
                 )
+                gdp_events_data = {}
+                gdp_events_data["total_count"] = 0
+                gdp_events_data["results"] = []
                 attempts += 1
                 time.sleep(1)
         except Exception as ex:
