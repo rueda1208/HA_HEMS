@@ -18,7 +18,7 @@ map:
   - type: share           # This maps Host: /share -> Container: /share
     read_only: false
 environment:
-  LOGLEVEL: DEBUG
+  LOGLEVEL: INFO
   TZ: America/Montreal
 options:
   heat_pump_enabled: true
