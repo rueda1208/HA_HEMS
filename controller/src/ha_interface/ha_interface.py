@@ -1,14 +1,17 @@
-import os
-import yaml
 import json
 import logging
+import os
+
+from typing import Any, Dict, List, Union
+
 import numpy as np
 import pandas as pd
-from utils import utils
+
 from requests import get, post
-from abc import ABC, abstractmethod
 from sqlalchemy import create_engine
-from typing import Union, Any, Dict, List
+
+from utils import utils
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,58 +26,42 @@ POSTGRES_DB_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "homeassistant")
 
 # Create database connection URL
-db_url = f"postgresql://{POSTGRES_DB_USER}:{POSTGRES_DB_PASSWORD}@{POSTGRES_DB_HOST}:{POSTGRES_DB_PORT}/{POSTGRES_DB_NAME}"
+db_url = (
+    f"postgresql://{POSTGRES_DB_USER}:{POSTGRES_DB_PASSWORD}@{POSTGRES_DB_HOST}:{POSTGRES_DB_PORT}/{POSTGRES_DB_NAME}"
+)
 
 # Create SQLAlchemy engine
 postgres_db_engine = create_engine(db_url)
 
-class DeviceInterface(ABC):
-    @abstractmethod
-    def get(self, params: dict) -> float:
-        pass
 
-    @abstractmethod
-    def set(self, params: dict) -> None:
-        pass
-
-class MockDeviceInterface(DeviceInterface):
-    def get(self, params: dict) -> float:
-        logger.debug(f"Received get device state request: {params}")
-        return 1.0
-
-    def set(self, params: dict) -> None:
-        logger.debug(f"Received set device state request: {params}")
-
-class HomeAssistantDeviceInterface(DeviceInterface):
-    _host: str
-    _port: int
-    _headers: str
+class HomeAssistantDeviceInterface:
+    _headers: Dict[str, str]
 
     def __init__(self, host: str, port: int, token: str) -> None:
-        self._url_base = host + ":" + str(int(port)) if port is not None else host
+        self._url_base = f"{host}:{port}"
         self._headers = {"Authorization": f"Bearer {token}", "content-type": "application/json"}
 
     def get_devices_list(self) -> List[str]:
         """
-            Retrieves the installed devices from the Core API.
+        Retrieves the installed devices from the Core API.
         """
         api_url = f"{self._url_base}/api/states"
 
-        response = get(api_url, headers=self._headers, proxies={"http": None})
-        response.raise_for_status()
-        state_objects_array = response.json()
-        
+        raw_response = get(api_url, headers=self._headers)
+        raw_response.raise_for_status()
+        states = raw_response.json()
+
         devices = []
-        for object in state_objects_array:
-            if object["entity_id"].startswith(("climate.", "weather.")):
-                devices.append(object["entity_id"])
-                
+        for state in states:
+            if state["entity_id"].startswith(("climate.", "weather.")):
+                devices.append(state["entity_id"])
+
         logger.debug(f"{len(devices)} climate devices retrieved from API")
         return devices
 
     def get_device_state(self, devices_id: Union[str, list]) -> float:
         """
-            Retrieves the state of a device or multiple devices from the Home Assistant API.
+        Retrieves the state of a device or multiple devices from the Home Assistant API.
         """
         credentials = {
             "api_url": f"{self._url_base}/api/states/",
@@ -89,22 +76,22 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 else:
                     params = {"device": entity_id}
                     params["field"] = ["state", "last_changed"]
-                    
+
                     if entity_id.startswith("weather."):
                         params["field"] += ["temperature"]
                     elif entity_id.startswith("climate."):
-                        params["field"] += ["current_temperature","temperature"]
-                    
+                        params["field"] += ["current_temperature", "temperature"]
+
                 device_current_state = self.get(credentials=credentials, params=params)
-                
+
                 if devices_state is None:
                     devices_state = {entity_id: device_current_state}
                 else:
                     devices_state[entity_id] = device_current_state
-            
+
         return devices_state
 
-    def get_control_actions(self, devices_state: Dict[str, Any], heat_pump_cop_models:np.poly1d) -> Dict[str, Any]:
+    def get_control_actions(self, devices_state: Dict[str, Any], heat_pump_cop_models: np.poly1d) -> Dict[str, Any]:
         # --------------------------------------------------------- #
         # ---------------- GDP Event Retrieval Logic --------------- #
         # --------------------------------------------------------- #
@@ -121,7 +108,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             options_data = json.load(file_path)
 
         heat_pump_enabled = options_data.get("heat_pump_enabled", False)
-        
+
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
         # --------------------------------------------------------- #
@@ -156,28 +143,30 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             if not heat_pump_enabled:
                 logger.warning("Heat pump is disabled in configuration. Skipping heat pump control logic.")
                 control_actions = {}
-                control_actions["heat_pump"] = {"state":"off", "setpoint": None}
+                control_actions["heat_pump"] = {"state": "off", "setpoint": None}
             else:
                 logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
                 control_actions = {}
-                hp_target_temperature = utils.get_target_temperature(zone_id="climate.heat_pump", gdp_events=gdp_events, hvac_mode=heat_pump_mode+"ing")
+                hp_target_temperature = utils.get_target_temperature(
+                    zone_id="climate.heat_pump", gdp_events=gdp_events, hvac_mode=heat_pump_mode + "ing"
+                )
                 logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
-                control_actions["heat_pump"] = {"state":heat_pump_mode, "setpoint": hp_target_temperature}
+                control_actions["heat_pump"] = {"state": heat_pump_mode, "setpoint": hp_target_temperature}
         else:
             # Get state information for zones with heat pump impact
             zones_with_hp_impact_state = self._get_zone_metrics(
                 zones_to_check=zones_with_hp_impact,
                 devices_state=devices_state,
                 gdp_events=gdp_events,
-                )
-            
+            )
+
             # Determine control actions for heat pump impacted zones
             # TODO: Integrate preconditioning logic here in the future
             control_actions = self._control_logic_hp(
                 zones_with_hp_impact_state=zones_with_hp_impact_state,
                 heat_pump_mode=heat_pump_mode,
                 heat_pump_cop=heat_pump_cop,
-                )
+            )
             logger.debug(f"Control actions for heat pump impacted zones: {control_actions}")
 
         # --------------------------------------------------------- #
@@ -198,22 +187,22 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 zones_to_check=zones_without_hp_impact_state,
                 devices_state=devices_state,
                 gdp_events=gdp_events,
-                )
-            
+            )
+
             # Determine control actions for zones without heat pump impact
             # TODO: Integrate preconditioning logic here in the future
             thermostat_control_actions = self._control_logic_thermostat(
                 zones_without_hp_impact_state=zones_without_hp_impact_state,
-                )
+            )
             logger.debug(f"Thermostat setpoint for non-heat pump impacted zones: {thermostat_control_actions}")
-            
+
         # Merge control actions
         control_actions.update(thermostat_control_actions)
         logger.debug(f"Final control actions: {control_actions}")
 
         return control_actions
 
-    def execute_control_actions(self, control_actions: Dict[str, Any], devices_state:Dict[str, Any]) -> None:
+    def execute_control_actions(self, control_actions: Dict[str, Any], devices_state: Dict[str, Any]) -> None:
         credentials = {
             "api_url": f"{self._url_base}/api/services/climate/set_temperature",
             "headers": self._headers,
@@ -222,20 +211,20 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         if not control_actions:
             logger.info("No control actions to execute")
             return
-        
+
         for device_id, action in control_actions.items():
             if device_id == "heat_pump":
-                # Set heat pump mode 
+                # Set heat pump mode
                 if action["state"] == devices_state.get("climate.heat_pump", {}).get("state"):
                     logger.info(f"No change to heat pump state requested (remains {action['state']})")
                 else:
-                    logger.info(f"Setting heat pump state to {action['state']}") 
+                    logger.info(f"Setting heat pump state to {action['state']}")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
                     params = {
                         "action": {"entity_id": "climate." + device_id, "hvac_mode": action["state"]},
                     }
                     self.set(credentials=credentials, params=params)
-                
+
                 # Set heat pump temperature setpoint
                 if action["state"] == "off":
                     logger.info("Heat pump turned off, skipping setpoint adjustment")
@@ -259,21 +248,22 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
                     params = {
                         "action": {"entity_id": device_id, "temperature": action},
-                    }            
+                    }
                     self.set(credentials=credentials, params=params)
-    
-    @staticmethod
-    def _control_logic_hp(zones_with_hp_impact_state: Dict[str, Any], heat_pump_mode: str, heat_pump_cop: float) -> Union[float, None]:
+
+    def _control_logic_hp(
+        self, zones_with_hp_impact_state: Dict[str, Any], heat_pump_mode: str, heat_pump_cop: float
+    ) -> Union[float, None]:
         # Get mean inside and target temperatures across all zones
         # TODO: Validate if mean is the best approach here. Maybe consider only the coldest/hottest zone? or a weighted average? or zone with highest HP impact?
         inside_temp = np.mean([state["inside_temperature"] for state in zones_with_hp_impact_state.values()])
         target_temp = np.mean([state["target_temperature"] for state in zones_with_hp_impact_state.values()])
         logger.debug(f"Mean inside temperature: {inside_temp} C, Mean target temperature: {target_temp} C")
-        
+
         # Determine control action for each zone based on heat pump mode and COP
         control_actions = {}
-        control_actions["heat_pump"] = {"state":heat_pump_mode, "setpoint": None}
-        
+        control_actions["heat_pump"] = {"state": heat_pump_mode, "setpoint": None}
+
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == "heat":
             if inside_temp <= target_temp:
@@ -283,17 +273,17 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                         control_actions[zone_id] = target_temp - 1  # Slightly lower setpoint for zones
                 else:
                     for zone_id in zones_with_hp_impact_state.keys():
-                        control_actions[zone_id] = target_temp # Use auxiliary heating (e.g., electric baseboards)
+                        control_actions[zone_id] = target_temp  # Use auxiliary heating (e.g., electric baseboards)
             else:
-                control_actions["heat_pump"]["setpoint"] = target_temp + 1 # Use heat pump only
+                control_actions["heat_pump"]["setpoint"] = target_temp + 1  # Use heat pump only
                 for zone_id in zones_with_hp_impact_state.keys():
                     control_actions[zone_id] = target_temp - 2  # Turn off auxiliary heating
 
         elif heat_pump_mode == "cool":
             # Turn off auxiliary heating in cooling mode
             for zone_id in zones_with_hp_impact_state.keys():
-                control_actions[zone_id] = 5 # Use a lower setpoint to ensure to turn off heating
-            
+                control_actions[zone_id] = 5  # Use a lower setpoint to ensure to turn off heating
+
             if inside_temp > target_temp:
                 control_actions["heat_pump"]["setpoint"] = target_temp - 1
             else:
@@ -301,22 +291,22 @@ class HomeAssistantDeviceInterface(DeviceInterface):
 
         else:
             for zone_id in zones_with_hp_impact_state.keys():
-                control_actions[zone_id] = 10 # Set low setpoint to turn off heating
-        
+                control_actions[zone_id] = 10  # Set low setpoint to turn off heating
+
         return control_actions
 
-    @staticmethod
-    def _control_logic_thermostat(zones_without_hp_impact_state: Dict[str, Any]) -> float:
+    def _control_logic_thermostat(self, zones_without_hp_impact_state: Dict[str, Any]) -> float:
         control_actions = {}
         for zone_id, state in zones_without_hp_impact_state.items():
             inside_temp = state["inside_temperature"]
             target_temp = state["target_temperature"]
-            control_actions[zone_id] = target_temp # Apply target temperature directly as setpoint
+            control_actions[zone_id] = target_temp  # Apply target temperature directly as setpoint
             logger.debug(f"Zone {zone_id} - Inside temperature: {inside_temp} C, Target temperature: {target_temp} C")
         return control_actions
-    
-    @staticmethod
-    def _get_zone_metrics(zones_to_check: Dict, devices_state:Dict[str, Any], gdp_events:List[Dict[str, Any]]) -> Dict[str, float]:
+
+    def _get_zone_metrics(
+        self, zones_to_check: Dict, devices_state: Dict[str, Any], gdp_events: List[Dict[str, Any]]
+    ) -> Dict[str, float]:
         zone_metrics = {}
         for zone_id, hp_impact in zones_to_check.items():
             # Get current inside temperature
@@ -332,18 +322,16 @@ class HomeAssistantDeviceInterface(DeviceInterface):
             if target_temperature is None:
                 logger.warning(f"Target temperature for zone {zone_id} is None, skipping control action.")
                 continue
-            
+
             # Store state information
             zone_metrics[zone_id] = {
                 "inside_temperature": inside_temperature,
                 "target_temperature": target_temperature,
                 "heat_pump_impact": hp_impact,
-                }
+            }
         return zone_metrics
 
-    @staticmethod
-    def get(credentials:dict, params: dict) -> float:
-
+    def get(self, credentials: dict, params: dict) -> float:
         api_url = credentials["api_url"] + params["device"]
         headers = credentials["headers"]
         states_list = params["field"]
@@ -354,22 +342,21 @@ class HomeAssistantDeviceInterface(DeviceInterface):
 
         device_state = {}
         for state_to_get in states_list:
-            if state_to_get in ["state","last_changed"]:
+            if state_to_get in ["state", "last_changed"]:
                 dummy_device_state = response.json().get(state_to_get)
             else:
                 dummy_device_state = response.json().get("attributes", {}).get(state_to_get, None)
-        
+
             if isinstance(dummy_device_state, str):
                 device_state[state_to_get] = dummy_device_state.lower()
             elif isinstance(dummy_device_state, (int, float)):
                 device_state[state_to_get] = float(dummy_device_state)
             else:
                 device_state[state_to_get] = dummy_device_state
-        
+
         return device_state
 
-    @staticmethod
-    def set(credentials:dict, params: dict) -> None:
+    def set(self, credentials: dict, params: dict) -> None:
         api_url = credentials["api_url"]
         headers = credentials["headers"]
         action = params["action"]
@@ -377,10 +364,9 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         response = post(api_url, headers=headers, json=action)
         response.raise_for_status()
         logger.debug("Device %s requested to apply action %s", action["entity_id"], action)
-        HomeAssistantDeviceInterface._save_control_actions(control_actions=action)
+        self._save_control_actions(control_actions=action)
 
-    @staticmethod
-    def _save_control_actions(control_actions: Dict[str, Any]) -> None:
+    def _save_control_actions(self, control_actions: Dict[str, Any]) -> None:
         if "hvac_mode" in control_actions:
             mapping = {"off": 0, "heat": 1, "cool": 2, "auto": 3, "dry": 4, "fan_only": 5, "unknown": np.nan}
             action_name = "hvac_mode"
@@ -391,7 +377,7 @@ class HomeAssistantDeviceInterface(DeviceInterface):
         else:
             logger.warning("No valid control action to save")
             return
-        
+
         control_actions_to_save = pd.DataFrame(
             data=[  # Single row of data
                 ["control"]
@@ -399,10 +385,8 @@ class HomeAssistantDeviceInterface(DeviceInterface):
                 + [action_name]
                 + [action_value]
             ],
-            index=[
-                pd.Timestamp.now(tz="UTC").replace(microsecond=0)
-            ],  # Single timestamp index
-            columns=["_type","zone","name","value"], # Column names
+            index=[pd.Timestamp.now(tz="UTC").replace(microsecond=0)],  # Single timestamp index
+            columns=["_type", "zone", "name", "value"],  # Column names
         )
         # Set the index name to 'time'
         control_actions_to_save.index.name = "time"
