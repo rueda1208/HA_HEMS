@@ -4,17 +4,16 @@ import time
 
 import schedule
 
-from ha_interface.ha_interface import HomeAssistantDeviceInterface
-from utils import utils
+from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
+from controller.utils import utils
 
 
 # Set up logging
-utils.setup_logging(filename="controller.log")
+utils.setup_logging("controller.log")
 logger = logging.getLogger(__name__)
 
 HA_CREDENTIALS = {
-    "host": os.getenv("HA_HOST", "http://supervisor/core"),
-    "port": int(os.getenv("HA_PORT", 8123)),
+    "base_url": os.getenv("BASE_HA_URL", "http://supervisor/core"),
     "token": os.getenv("SUPERVISOR_TOKEN"),
 }
 

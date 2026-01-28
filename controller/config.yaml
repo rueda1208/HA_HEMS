@@ -1,6 +1,5 @@
-
 name: "Controller"
-slug: "hems_controller"
+slug: "controller"
 description: "Expert System-Based Controller"
 image: "rueda1208/controller"
 version: "1.1.2"
@@ -15,7 +14,7 @@ startup: services
 host_network: false
 homeassistant_api: true
 map:
-  - type: share           # This maps Host: /share -> Container: /share
+  - type: share # This maps Host: /share -> Container: /share
     read_only: false
 environment:
   LOGLEVEL: INFO
@@ -28,6 +27,5 @@ options:
 schema:
   heat_pump_enabled: bool
   gdp_events:
-    date:  str
+    date: str
     time_spec: str
-      

@@ -2,9 +2,8 @@
 name = "controller"
 version = "0.1.0"
 description = ""
-authors = ["rueda1208 <luisfruedav@gmil.com>"]
+authors = ["rueda1208 <luisfruedav@gmail.com>"]
 readme = "README.md"
-package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -15,8 +14,16 @@ schedule = "^1.2.2"
 pandas = "^2.3.3"
 sqlalchemy = "^2.0.44"
 psycopg2-binary = "^2.9.11"
+dataclasses-json = "^0.6.7"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "types-requests (>=2.32.4.20260107,<3.0.0.0)",
+    "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
+    "pandas-stubs (>=2.3.3.260113,<3.0.0.0)",
+]
