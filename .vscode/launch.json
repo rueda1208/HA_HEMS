@@ -2,15 +2,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "cwd": "${workspaceFolder}",
-            "name": "controller",
-            "type": "python",
+            "name": "Controller",
+            "type": "debugpy",
             "request": "launch",
-            "module": "controller.src.main",
-            "console": "integratedTerminal",
-            "envFile": "${workspaceFolder}/secrets/controller/.dev_env",
-            // "python": "${workspaceFolder}/src/battery_opt/.venv/bin/python3.10",
-            "env": {"PYTHONPATH": "${workspaceFolder}/controller/src"},
-        }
+            "python": "${workspaceFolder}/controller/.venv/bin/python",
+            "module": "controller.main",
+            "cwd": "${workspaceFolder}/controller",
+        },
     ]
 }

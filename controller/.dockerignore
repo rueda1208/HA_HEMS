@@ -1,0 +1,10 @@
+**/.venv
+**/__pycache__
+*.log
+.dockerignore
+build.sh
+mypy.ini
+ruff.toml
+.gitignore
+.gitlab-ci.yml
+Dockerfile

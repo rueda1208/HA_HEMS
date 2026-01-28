@@ -10,7 +10,7 @@ import pandas as pd
 from requests import get, post
 from sqlalchemy import create_engine
 
-from utils import utils
+from controller.utils import utils
 
 
 logger = logging.getLogger(__name__)
@@ -37,8 +37,8 @@ postgres_db_engine = create_engine(db_url)
 class HomeAssistantDeviceInterface:
     _headers: Dict[str, str]
 
-    def __init__(self, host: str, port: int, token: str) -> None:
-        self._url_base = f"{host}:{port}"
+    def __init__(self, base_url: str, token: str) -> None:
+        self._url_base = base_url
         self._headers = {"Authorization": f"Bearer {token}", "content-type": "application/json"}
 
     def get_devices_list(self) -> List[str]:

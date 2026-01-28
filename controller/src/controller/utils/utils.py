@@ -19,7 +19,10 @@ CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH", "/share/controller/config/confi
 LOGS_DIR = os.getenv("LOGS_DIR", "/share/controller/logs")
 
 
-def setup_logging(filename: str = "logger.log"):
+def setup_logging(filename: str):
+    if not os.path.exists(LOGS_DIR):
+        os.makedirs(LOGS_DIR)
+
     # Create a TimedRotatingFileHandler
     file_handler = TimedRotatingFileHandler(
         f"{LOGS_DIR}/{filename}",  # Base log file name
