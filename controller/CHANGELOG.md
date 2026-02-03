@@ -1,3 +1,8 @@
+## 1.1.3
+
+- Enable changing the indoor temperature sensor source
+- Record user preferences and controller decisions for analytics and insights
+
 ## 1.1.2
 
 - Improve save_control_actions so it reliably identifies and records heat‑pump off events.

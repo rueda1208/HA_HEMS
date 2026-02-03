@@ -310,6 +310,17 @@ def get_target_temperature(
         logger.debug(f"Zone {zone_id}: no target temperature found")
         return None
 
+def get_environment_sensor_id() -> Union[str, None]:
+    # Load config
+    with open(CONFIG_FILE_PATH, "r") as f:
+        config = yaml.safe_load(f)
+
+    environment_sensor_id = config.get("environment_sensor_id", None)
+    if environment_sensor_id is None:
+        logger.error("No environment_sensor_id specified in config.yaml")
+        return None
+
+    return environment_sensor_id
 
 def get_target_from_schedule(current_hour: int, current_day_type: str, schedule: Dict[str, Any]) -> Union[float, None]:
     if current_day_type in schedule:

@@ -81,6 +81,8 @@ class HomeAssistantDeviceInterface:
                         params["field"] += ["temperature"]
                     elif entity_id.startswith("climate."):
                         params["field"] += ["current_temperature", "temperature"]
+                    else:
+                        pass
 
                 device_current_state = self.get(credentials=credentials, params=params)
 
@@ -151,7 +153,7 @@ class HomeAssistantDeviceInterface:
                     zone_id="climate.heat_pump", gdp_events=gdp_events, hvac_mode=heat_pump_mode + "ing"
                 )
                 logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
-                control_actions["heat_pump"] = {"state": heat_pump_mode, "setpoint": hp_target_temperature}
+                control_actions["heat_pump"] = {"state": heat_pump_mode, "setpoint": hp_target_temperature, "user_pref": hp_target_temperature, "ctrl_state": 0.0}
         else:
             # Get state information for zones with heat pump impact
             zones_with_hp_impact_state = self._get_zone_metrics(
@@ -190,7 +192,6 @@ class HomeAssistantDeviceInterface:
             )
 
             # Determine control actions for zones without heat pump impact
-            # TODO: Integrate preconditioning logic here in the future
             thermostat_control_actions = self._control_logic_thermostat(
                 zones_without_hp_impact_state=zones_without_hp_impact_state,
             )
@@ -239,6 +240,24 @@ class HomeAssistantDeviceInterface:
                             "action": {"entity_id": "climate." + device_id, "temperature": setpoint},
                         }
                         self.set(credentials=credentials, params=params)
+
+                # Save control state and user preference in database
+                self._save_in_database(
+                    data={
+                        "_type": "control",
+                        "zone": "heat_pump",
+                        "name": "ctrl_state",
+                        "value": action["ctrl_state"],
+                    }
+                )
+                self._save_in_database(
+                    data={
+                        "_type": "control",
+                        "zone": "heat_pump",
+                        "name": "user_pref",
+                        "value": action["user_pref"],
+                    }
+                )
             else:
                 # Set zone temperature setpoint
                 if action == devices_state.get(device_id, {}).get("temperature"):
@@ -256,25 +275,29 @@ class HomeAssistantDeviceInterface:
     ) -> Union[float, None]:
         # Get mean inside and target temperatures across all zones
         # TODO: Validate if mean is the best approach here. Maybe consider only the coldest/hottest zone? or a weighted average? or zone with highest HP impact?
-        inside_temp = np.mean([state["inside_temperature"] for state in zones_with_hp_impact_state.values()])
+        environment_sensor_id = utils.get_environment_sensor_id()
+        inside_temp = self._get_indoor_temperature(environment_sensor_id)
         target_temp = np.mean([state["target_temperature"] for state in zones_with_hp_impact_state.values()])
         logger.debug(f"Mean inside temperature: {inside_temp} C, Mean target temperature: {target_temp} C")
 
         # Determine control action for each zone based on heat pump mode and COP
         control_actions = {}
-        control_actions["heat_pump"] = {"state": heat_pump_mode, "setpoint": None}
+        control_actions["heat_pump"] = {"state": heat_pump_mode, "setpoint": None, "user_pref": target_temp, "ctrl_state": -99.0}
 
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == "heat":
             if inside_temp <= target_temp:
                 control_actions["heat_pump"]["setpoint"] = target_temp + 2
                 if heat_pump_cop >= 2.5:
+                    control_actions["heat_pump"]["ctrl_state"] = "1.0"
                     for zone_id in zones_with_hp_impact_state.keys():
                         control_actions[zone_id] = target_temp - 1  # Slightly lower setpoint for zones
                 else:
+                    control_actions["heat_pump"]["ctrl_state"] = "2.0"
                     for zone_id in zones_with_hp_impact_state.keys():
                         control_actions[zone_id] = target_temp  # Use auxiliary heating (e.g., electric baseboards)
             else:
+                control_actions["heat_pump"]["ctrl_state"] = "3.0"
                 control_actions["heat_pump"]["setpoint"] = target_temp + 1  # Use heat pump only
                 for zone_id in zones_with_hp_impact_state.keys():
                     control_actions[zone_id] = target_temp - 2  # Turn off auxiliary heating
@@ -285,8 +308,10 @@ class HomeAssistantDeviceInterface:
                 control_actions[zone_id] = 5  # Use a lower setpoint to ensure to turn off heating
 
             if inside_temp > target_temp:
+                control_actions["heat_pump"]["ctrl_state"] = "-1.0"
                 control_actions["heat_pump"]["setpoint"] = target_temp - 1
             else:
+                control_actions["heat_pump"]["ctrl_state"] = "-2.0"
                 control_actions["heat_pump"]["setpoint"] = target_temp
 
         else:
@@ -378,23 +403,51 @@ class HomeAssistantDeviceInterface:
             logger.warning("No valid control action to save")
             return
 
-        control_actions_to_save = pd.DataFrame(
+        self._save_in_database(
+            data={
+                "_type": "control",
+                "zone": control_actions.get("entity_id", "unknown").split(".")[1],
+                "name": action_name,
+                "value": action_value,
+            }
+        )
+        logger.info("Control actions saved to TimescaleDB")
+
+    def _save_in_database(self, data: Dict[str, Any]) -> None:
+        data_to_save = pd.DataFrame(
             data=[  # Single row of data
-                ["control"]
-                + [control_actions.get("entity_id", "unknown").split(".")[1]]
-                + [action_name]
-                + [action_value]
+                [data.get("_type", "unknown")]
+                + [data.get("zone", "unknown")]
+                + [data.get("name", "unknown")]
+                + [data.get("value", np.nan)]
             ],
             index=[pd.Timestamp.now(tz="UTC").replace(microsecond=0)],  # Single timestamp index
             columns=["_type", "zone", "name", "value"],  # Column names
         )
         # Set the index name to 'time'
-        control_actions_to_save.index.name = "time"
+        data_to_save.index.name = "time"
 
         # Save to TimescaleDB
-        control_actions_to_save.to_sql(
+        data_to_save.to_sql(
             name="space_heating",
             con=postgres_db_engine,
             if_exists="append",
         )
-        logger.info("Control actions saved to TimescaleDB")
+        logger.debug("Data saved to TimescaleDB")
+
+    def _get_indoor_temperature(self, environment_sensor_id: str):
+        # Get inside temperature from Home Assistant
+        inside_temp = self.get_device_state([environment_sensor_id])
+
+        # Return temperature value
+        if isinstance(inside_temp, dict) and environment_sensor_id in inside_temp:
+            if "current_temperature" in inside_temp[environment_sensor_id]:
+                return float(inside_temp[environment_sensor_id].get("current_temperature", None))
+            elif "state" in inside_temp[environment_sensor_id]:
+                return float(inside_temp[environment_sensor_id].get("state", None))
+            else:
+                logger.error(f"Temperature data not found for sensor {environment_sensor_id}")
+                return None
+        else:
+            logger.error(f"Failed to retrieve inside temperature for sensor {environment_sensor_id}")
+            return None
