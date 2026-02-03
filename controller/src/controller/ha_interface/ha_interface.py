@@ -145,7 +145,7 @@ class HomeAssistantDeviceInterface:
             if not heat_pump_enabled:
                 logger.warning("Heat pump is disabled in configuration. Skipping heat pump control logic.")
                 control_actions = {}
-                control_actions["heat_pump"] = {"state": "off", "setpoint": None}
+                control_actions["heat_pump"] = {"state": "off", "setpoint": None, "user_pref": -99.0, "ctrl_state": -99.0}
             else:
                 logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
                 control_actions = {}
