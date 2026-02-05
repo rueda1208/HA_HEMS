@@ -3,15 +3,14 @@ import datetime
 import json
 import logging
 import os
-import time
 
 from logging.handlers import TimedRotatingFileHandler
-from typing import Any, Dict, List, Union
-from zoneinfo import ZoneInfo
+from typing import Any, Dict, Union
 
 import numpy as np
-import requests
 import yaml
+
+from controller.utils.peak_events import BasePeakEventClient, MockPeakEventClient, PeakEvent, PeakEventClient
 
 
 logger = logging.getLogger(__name__)
@@ -106,9 +105,10 @@ def update_config_with_zones(zones):
     logger.debug(f"'{CONFIG_FILE_PATH}' updated successfully with new zones (if any).")
 
 
-def create_cop_model() -> float:
+def create_cop_model() -> Dict[str, Any]:
     # Load config
-    with open(CONFIG_FILE_PATH, "r") as f:
+    heat_pump_config_file_path = os.getenv("HEAT_PUMP_CONFIG_FILE_PATH", "/share/controller/config/heat-pump.yaml")
+    with open(heat_pump_config_file_path, "r") as f:
         config = yaml.safe_load(f)
 
     # Load heat_pump_performance_specs
@@ -117,13 +117,13 @@ def create_cop_model() -> float:
     hp_heating_performance_specs = heat_pump_performance_specs.get("heating", {}).get("COP_points", {})
 
     # Create regression model using heating COP data points
-    outside_temperatures_list = [data["outdoor_dry_bulb_C"] for id, data in hp_cooling_performance_specs.items()]
-    cop_values_list = [data["max"] for id, data in hp_cooling_performance_specs.items()]
+    outside_temperatures_list = [data["outdoor_dry_bulb_C"] for data in hp_cooling_performance_specs.values()]
+    cop_values_list = [data["max"] for data in hp_cooling_performance_specs.values()]
     cooling_cop_model = np.poly1d(np.polyfit(outside_temperatures_list, cop_values_list, 2))
 
     # Create regression model using heating COP data points
-    outside_temperatures_list = [data["outdoor_dry_bulb_C"] for id, data in hp_heating_performance_specs.items()]
-    cop_values_list = [data["max"] for id, data in hp_heating_performance_specs.items()]
+    outside_temperatures_list = [data["outdoor_dry_bulb_C"] for data in hp_heating_performance_specs.values()]
+    cop_values_list = [data["max"] for data in hp_heating_performance_specs.values()]
     heating_cop_model = np.poly1d(np.polyfit(outside_temperatures_list, cop_values_list, 2))
 
     return {"cool": cooling_cop_model, "heat": heating_cop_model}
@@ -131,7 +131,7 @@ def create_cop_model() -> float:
 
 def select_zones_hp_impact(with_impact: bool) -> Dict:
     # Load configuration
-    with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
+    with open(os.getenv("OPTIONS_FILE_PATH", "/data/options.json"), "r") as file_path:
         options_data = json.load(file_path)
 
     heat_pump_enabled = options_data.get("heat_pump_enabled", False)
@@ -166,7 +166,7 @@ def select_zones_hp_impact(with_impact: bool) -> Dict:
 
 
 def get_target_temperature(
-    zone_id: str, gdp_events: List[Dict[str, Any]], hvac_mode: str | None = None
+    zone_id: str, gdp_event: PeakEvent | None, hvac_mode: str | None = None
 ) -> Union[float, None]:
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
@@ -182,120 +182,92 @@ def get_target_temperature(
         schedule = zone_settings.get(hvac_mode, {}).get("schedule", {})
 
     # Determine day type and current hour
-    now = datetime.datetime.now()
+    now = datetime.datetime.now().astimezone()
     current_hour = now.hour
-    current_timestamp = now.timestamp()
     current_day_type = "weekday" if now.weekday() < 5 else "weekend"
 
     # Get initial target temperature from schedule
     init_target_temperature = get_target_from_schedule(current_hour, current_day_type, schedule)
 
     # Check for GDP events today
-    if not gdp_events:
+    if not gdp_event:
         target_temperature = init_target_temperature
         logger.debug("No GDP events today, using regular schedule")
     else:
-        # Build list of GDP event hours
         gdp_timestamp_dict = {
-            "start_timestamp": None,
-            "end_timestamp": None,
+            "start": gdp_event.datedebut,
+            "end": gdp_event.datefin,
         }
+
         preconditioning_timestamp_dict = {
-            "start_timestamp": None,
-            "end_timestamp": None,
+            "start": gdp_timestamp_dict["start"] - datetime.timedelta(hours=2),  # Two hours before event
+            "end": gdp_timestamp_dict["start"],
         }
+
         post_event_recovery_timestamp_dict = {
-            "start_timestamp": None,
-            "end_timestamp": None,
+            "start": gdp_timestamp_dict["end"],
+            "end": gdp_timestamp_dict["end"] + datetime.timedelta(hours=1),  # One hour after event
         }
-        for event in gdp_events:
-            try:
-                # GDP event timestamps
-                gdp_timestamp_dict["start_timestamp"] = datetime.datetime.strptime(
-                    event["datedebut"], "%Y-%m-%dT%H:%M:%S%z"
-                ).timestamp()
-                gdp_timestamp_dict["end_timestamp"] = datetime.datetime.strptime(
-                    event["datefin"], "%Y-%m-%dT%H:%M:%S%z"
-                ).timestamp()
-                # Preconditioning timestamps
-                if zone_preconditioning:
-                    preconditioning_timestamp_dict["start_timestamp"] = (
-                        gdp_timestamp_dict["start_timestamp"] - 7200
-                    )  # Two hours before event
-                    preconditioning_timestamp_dict["end_timestamp"] = gdp_timestamp_dict["start_timestamp"]
-                # Post-event recovery timestamps
-                post_event_recovery_timestamp_dict["start_timestamp"] = gdp_timestamp_dict["end_timestamp"]
-                post_event_recovery_timestamp_dict["end_timestamp"] = (
-                    gdp_timestamp_dict["end_timestamp"] + 3600
-                )  # One hour after event
-            except Exception as ex:
-                logger.error("Error parsing GDP event timestamps: %s", ex, exc_info=True)
-                continue
 
         # Apply flexibility adjustment if current hour is within GDP event hours
-        if (
-            current_timestamp >= gdp_timestamp_dict["start_timestamp"]
-            and current_timestamp < gdp_timestamp_dict["end_timestamp"]
-        ):
-            target_temperature = init_target_temperature - zone_flexibility.get(
-                "downward", 0.0
-            )  # Negative for lowering temp during event
+        if now >= gdp_timestamp_dict["start"] and now < gdp_timestamp_dict["end"]:
+            # Negative for lowering temp during event
+            target_temperature = init_target_temperature - zone_flexibility.get("downward", 0.0)
         elif (
             zone_preconditioning
-            and current_timestamp >= preconditioning_timestamp_dict["start_timestamp"]
-            and current_timestamp < preconditioning_timestamp_dict["end_timestamp"]
+            and now >= preconditioning_timestamp_dict["start"]
+            and now < preconditioning_timestamp_dict["end"]
         ):
             # Calculate max target temperature during GDP event hours for preconditioning
-            start_preconditioning_hour = datetime.datetime.fromtimestamp(
-                preconditioning_timestamp_dict["start_timestamp"]
-            ).hour
-            start_gdp_hour = datetime.datetime.fromtimestamp(gdp_timestamp_dict["start_timestamp"]).hour
-            stop_gdp_hour = datetime.datetime.fromtimestamp(gdp_timestamp_dict["end_timestamp"]).hour
+            start_preconditioning_hour = (preconditioning_timestamp_dict["start"]).hour
+            start_gdp_hour = (gdp_timestamp_dict["start"]).hour
+            stop_gdp_hour = (gdp_timestamp_dict["end"]).hour
+
             max_target_temperature_at_gdp_event = (
                 get_target_from_schedule(start_gdp_hour, current_day_type, schedule) or 0.0
             )
+
             for hour in range(start_gdp_hour, stop_gdp_hour):
                 max_target_temperature_at_gdp_event = max(
                     max_target_temperature_at_gdp_event,
                     get_target_from_schedule(hour, current_day_type, schedule) or 0.0,
                 )
+
             # Calculate preconditioning flexibility
-            zone_flexibility_value = zone_flexibility.get(
-                "upward", 0.0
-            )  # Positive for raising temp during preconditioning
+            zone_flexibility_value = zone_flexibility.get("upward", 0.0)
+
+            # Positive for raising temp during preconditioning
             target_temperature = conditioning_ramping(
                 ramping_time=int(
-                    preconditioning_timestamp_dict["end_timestamp"] - preconditioning_timestamp_dict["start_timestamp"]
+                    (preconditioning_timestamp_dict["end"] - preconditioning_timestamp_dict["start"]).total_seconds()
                 ),
-                elapsed_time=int(current_timestamp - preconditioning_timestamp_dict["start_timestamp"]),
+                elapsed_time=int((now - preconditioning_timestamp_dict["start"]).total_seconds()),
                 initial_value=get_target_from_schedule(start_preconditioning_hour, current_day_type, schedule) or 0.0,
                 target_value=zone_flexibility_value + max_target_temperature_at_gdp_event,
             )
-        elif (
-            current_timestamp >= post_event_recovery_timestamp_dict["start_timestamp"]
-            and current_timestamp < post_event_recovery_timestamp_dict["end_timestamp"]
-        ):
-            stop_post_event_hour = datetime.datetime.fromtimestamp(
-                post_event_recovery_timestamp_dict["end_timestamp"]
-            ).hour
+        elif now >= post_event_recovery_timestamp_dict["start"] and now < post_event_recovery_timestamp_dict["end"]:
+            stop_post_event_hour = (post_event_recovery_timestamp_dict["end"]).hour
+
             max_target_temperature_post_event_recovery = get_target_from_schedule(
                 stop_post_event_hour, current_day_type, schedule
             )  # Target at end of recovery
+
             init_zone_temperature_after_gdp_event = (
                 get_target_from_schedule(
-                    datetime.datetime.fromtimestamp(post_event_recovery_timestamp_dict["start_timestamp"]).hour
-                    - 1,  # One hour before recovery
+                    (post_event_recovery_timestamp_dict["start"]).hour - 1,  # One hour before recovery
                     current_day_type,
                     schedule,
                 )
                 or 0.0
             )
+
             target_temperature = conditioning_ramping(
                 ramping_time=int(
-                    post_event_recovery_timestamp_dict["end_timestamp"]
-                    - post_event_recovery_timestamp_dict["start_timestamp"]
+                    (
+                        post_event_recovery_timestamp_dict["end"] - post_event_recovery_timestamp_dict["start"]
+                    ).total_seconds()
                 ),
-                elapsed_time=int(current_timestamp - post_event_recovery_timestamp_dict["start_timestamp"]),
+                elapsed_time=int((now - post_event_recovery_timestamp_dict["start"]).total_seconds()),
                 initial_value=init_zone_temperature_after_gdp_event,
                 target_value=max_target_temperature_post_event_recovery,  # No flexibility during recovery, just return to target
             )
@@ -310,6 +282,7 @@ def get_target_temperature(
         logger.debug(f"Zone {zone_id}: no target temperature found")
         return None
 
+
 def get_environment_sensor_id() -> Union[str, None]:
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
@@ -317,11 +290,13 @@ def get_environment_sensor_id() -> Union[str, None]:
 
     environment_sensor_id = config.get("environment_sensor_id", None)
     if environment_sensor_id is None:
-        logger.error("No environment_sensor_id specified in config.yaml")
+        logger.error(f"No environment_sensor_id specified in {CONFIG_FILE_PATH}")
         return None
 
     return environment_sensor_id
 
+
+# TODO: Refactor this function to handle hours and minutes in schedule time slots (ex.: 10h30-15h45)
 def get_target_from_schedule(current_hour: int, current_day_type: str, schedule: Dict[str, Any]) -> Union[float, None]:
     if current_day_type in schedule:
         time_slots = schedule[current_day_type].get("time_slots", {})
@@ -358,153 +333,46 @@ def conditioning_ramping(ramping_time: int, elapsed_time: int, initial_value: fl
     return round(y, 2)
 
 
-def retrieve_gdp_events() -> List[Dict[str, Any]]:
-    # Retrieve GDP events from Hydro-Quebec API or mock data
-    gdp_events_data = _get_mock_gdp_events()
-    if gdp_events_data:
-        return gdp_events_data["results"]
+def retrieve_gdp_event() -> PeakEvent | None:
+    gdp_events_path = os.getenv("MOCK_GDP_EVENTS_PATH")
 
-    # Define the API endpoint
-    api_url = os.getenv(
-        "HQ_API_URL", "https://donnees.hydroquebec.com/api/explore/v2.1/catalog/datasets/evenements-pointe/records"
-    )
+    peak_events_client: BasePeakEventClient
 
-    # Set query parameters
-    params = {
-        "select": "datedebut,datefin,plagehoraire",
-        "where": 'offre="CPC-D"',
-        "order_by": "datedebut DESC",
-        "limit": 20,
-    }
-
-    # Retrieve GDP events data
-    attempts = 0
-    while attempts < 5:
-        try:
-            response = requests.get(api_url, params=params)
-            if response.status_code == 200:
-                gdp_events_data = response.json()
-                break
-            else:
-                logger.error("Error while retrieving GDP events data: %s", response.text)
-                gdp_events_data = {}
-                gdp_events_data["total_count"] = 0
-                gdp_events_data["results"] = []
-                attempts += 1
-                time.sleep(1)
-        except Exception as ex:
-            logger.error("An error occurred: %s", ex, exc_info=True)
-            gdp_events_data = {}
-            gdp_events_data["total_count"] = 0
-            gdp_events_data["results"] = []
-            attempts += 1
-            time.sleep(1)
-
-    # Check if there are any GDP events for today
-    if gdp_events_data["total_count"] == 0:
-        logger.debug("No GDP events available from Hydro-Quebec API")
-        return []
+    if gdp_events_path:
+        logger.debug("Using GDP events from local file: %s", gdp_events_path)
+        peak_events_client = MockPeakEventClient(gdp_events_path)
     else:
-        logger.debug("Retrieved %s GDP events", gdp_events_data["total_count"])
-        today = datetime.datetime.now().date()
-        today_events = [
-            event
-            for event in gdp_events_data["results"]
-            if datetime.datetime.strptime(event["datedebut"], "%Y-%m-%dT%H:%M:%S%z").date() == today
-        ]
+        logger.debug("Using GDP events from Hydro-Quebec API")
+        peak_events_client = PeakEventClient(os.getenv("HEMS_API_BASE_URL", "http://hems.hydroquebec.lab:8500"))
 
-        if not today_events:
-            logger.debug("No GDP events found for today")
-        else:
-            logger.debug("Todays's GDP events: %s", json.dumps(today_events, indent=4))
-        return today_events
+    peak_events = peak_events_client.get_peak_events()
 
+    logger.debug("Retrieved %s GDP events", len(peak_events))
 
-def _get_mock_gdp_events() -> List[Dict[str, Any]]:
-    # Load configuration
-    with open(os.getenv("GDP_EVENTS_PATH", "/data/options.json"), "r") as file_path:
-        options_data = json.load(file_path)
+    now = datetime.datetime.now().astimezone()
+    today = now.date()
 
-    config_gdp_events = options_data["gdp_events"]
+    # Filter events for today
+    today_events = [event for event in peak_events if event.datedebut.date() == today]
 
-    if not config_gdp_events:
-        # No mock GDP events specified in config
-        logger.debug("No mock GDP events data found in config.yaml")
-        return []
-    else:
-        # Use mock GDP events from config
-        logger.debug("Using mock GDP events data from config.yaml")
-        event_date = datetime.date.fromisoformat(config_gdp_events["date"])
-        plage = config_gdp_events["time_spec"].upper()
+    if not today_events:
+        logger.debug("No GDP events found for today")
+        return None
 
-        # Check if the mock event date matches today's date
-        if event_date != datetime.datetime.now().date():
-            logger.debug("Mock GDP event date does not match today's date")
-            return []
+    # Sort events by start time
+    today_events.sort(key=lambda e: e.datedebut)
 
-        # Define AM / PM time windows
-        def fmt(dt):
-            return dt.isoformat() + "+00:00"
+    # Check for ongoing or upcoming event
+    for event in today_events:
+        # Event is ongoing
+        if event.datedebut <= now <= event.datefin:
+            logger.debug("Current GDP event: %s", event)
+            return event
+        # Event is upcoming
+        elif now < event.datedebut:
+            logger.debug("Next GDP event: %s", event)
+            return event
 
-        AM_START = datetime.time(11, 0, 0)  # Start in UTC
-        AM_END = datetime.time(14, 0, 0)  # End in UTC
-
-        PM_START = datetime.time(21, 0, 0)  # Start in UTC
-        PM_END = datetime.time(1, 0, 0)  # End in UTC (next day)
-
-        results = []
-
-        if plage in ("AM", "AM/PM"):
-            results.append(
-                {
-                    "datedebut": fmt(datetime.datetime.combine(event_date, AM_START)),
-                    "datefin": fmt(datetime.datetime.combine(event_date, AM_END)),
-                    "plagehoraire": "AM",
-                }
-            )
-
-        if plage in ("PM", "AM/PM"):
-            # PM crosses midnight → end is next day
-            end_date = event_date + datetime.timedelta(days=1)
-            results.append(
-                {
-                    "datedebut": fmt(datetime.datetime.combine(event_date, PM_START)),
-                    "datefin": fmt(datetime.datetime.combine(end_date, PM_END)),
-                    "plagehoraire": "PM",
-                }
-            )
-
-        # Normalize: "11H" → "11:00"
-        if plage.endswith("H"):
-            hour = int(plage.replace("H", ""))
-            date_debut = datetime.datetime.combine(
-                event_date, datetime.time(hour, 0), tzinfo=ZoneInfo("America/Montreal")
-            )
-            date_debut_utc = date_debut.astimezone(datetime.timezone.utc)
-            results.append(
-                {
-                    "datedebut": date_debut_utc.isoformat(),
-                    "datefin": (date_debut_utc + datetime.timedelta(hours=4)).isoformat(),
-                    "plagehoraire": None,
-                }
-            )
-
-        # Format “HH:MM”
-        if ":" in plage:
-            hour, minute = [int(x) for x in plage.split(":")]
-            results.append(
-                {
-                    "datedebut": fmt(datetime.datetime.combine(event_date, datetime.time(hour, minute))),
-                    "datefin": fmt(
-                        datetime.datetime.combine(event_date, datetime.time(hour, minute)) + datetime.timedelta(hours=4)
-                    ),
-                    "plagehoraire": None,
-                }
-            )
-
-        gdp_events_data = {
-            "total_count": len(results),
-            "results": results,
-        }
-
-        return gdp_events_data
+    # All events are finished
+    logger.debug("All GDP events for today are finished")
+    return None

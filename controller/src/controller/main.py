@@ -8,21 +8,18 @@ from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 from controller.utils import utils
 
 
-# Set up logging
-utils.setup_logging("controller.log")
-logger = logging.getLogger(__name__)
-
-HA_CREDENTIALS = {
-    "base_url": os.getenv("BASE_HA_URL", "http://supervisor/core"),
-    "token": os.getenv("SUPERVISOR_TOKEN"),
-}
-
-
 def main() -> None:
+    # Set up logging
+    utils.setup_logging("controller.log")
+    logger = logging.getLogger(__name__)
+
+    base_url = os.getenv("BASE_HA_URL", "http://supervisor/core")
+    token = str(os.getenv("SUPERVISOR_TOKEN"))
+
     logger.info("Starting controller module ...")
 
     # Retrieve the list of devices from Home Assistant.
-    ha_interface = HomeAssistantDeviceInterface(**HA_CREDENTIALS)
+    ha_interface = HomeAssistantDeviceInterface(base_url, token)
 
     # Get list of devices from Home Assistant
     devices_list = ha_interface.get_devices_list()
@@ -35,7 +32,7 @@ def main() -> None:
 
     # Main control loop
     def _main_loop():
-        devices_state = ha_interface.get_device_state(devices_id=devices_list)
+        devices_state = ha_interface.get_device_state(devices_list)
         control_actions = ha_interface.get_control_actions(
             devices_state=devices_state, heat_pump_cop_models=heat_pump_cop_models
         )
@@ -75,16 +72,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    log_level = os.getenv("LOGLEVEL", "DEBUG").upper()
-    logging_format = "%(asctime)s [%(levelname)5s] %(message)s (%(filename)s:%(lineno)s)"
-    if os.getenv("LOCAL_LOG_FILE", False):
-        logging.basicConfig(
-            filename="/share/controller/logs/controller.log",
-            level=log_level,
-            format=logging_format,
-            filemode="w",
-        )
-    else:
-        logging.basicConfig(level=log_level, format=logging_format)
-
     main()
