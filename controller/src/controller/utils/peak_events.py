@@ -1,25 +1,24 @@
 import json
-import os
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List
 
 import requests
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import config, dataclass_json
 
 
-@dataclass
 @dataclass_json
+@dataclass
 class PeakEvent:
     offre: str
-    datedebut: datetime
-    datefin: datetime
+    plagehoraire: str
     duree: str
     secteurclient: str
-    plagehoraire: str
+    datedebut: datetime = field(metadata=config(decoder=datetime.fromisoformat, encoder=datetime.isoformat))
+    datefin: datetime = field(metadata=config(decoder=datetime.fromisoformat, encoder=datetime.isoformat))
 
 
 class BasePeakEventClient(ABC):
@@ -30,9 +29,14 @@ class BasePeakEventClient(ABC):
 
 
 class MockPeakEventClient(BasePeakEventClient):
+    gdp_events_path: str
+
+    def __init__(self, gdp_events_path: str):
+        self.gdp_events_path = gdp_events_path
+
     def get_peak_events(self) -> List[PeakEvent]:
         # Mock implementation returning dummy peak events
-        with open(str(os.getenv("GDP_EVENTS_PATH")), "r") as file_path:
+        with open(self.gdp_events_path, "r") as file_path:
             peak_events = json.load(file_path)
             return [PeakEvent.from_dict(event) for event in peak_events]  # type: ignore
 

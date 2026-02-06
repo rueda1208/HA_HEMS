@@ -9,6 +9,7 @@
   "runArgs": [
     "-e",
     "GIT_EDITOR=code --wait",
+    "--network=host",
     "--privileged"
   ],
   "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",
