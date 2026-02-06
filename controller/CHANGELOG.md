@@ -1,3 +1,8 @@
+## 1.1.4
+
+- Extracted peak events and heat pump configurations
+- Simplified control logic
+
 ## 1.1.3
 
 - Enable changing the indoor temperature sensor source

@@ -334,11 +334,11 @@ def conditioning_ramping(ramping_time: int, elapsed_time: int, initial_value: fl
 
 
 def retrieve_gdp_event() -> PeakEvent | None:
-    gdp_events_path = os.getenv("MOCK_GDP_EVENTS_PATH")
+    gdp_events_path = os.getenv("MOCK_GDP_EVENTS_PATH", "/share/controller/config/peak-events.json")
 
     peak_events_client: BasePeakEventClient
 
-    if gdp_events_path:
+    if os.path.exists(gdp_events_path):
         logger.debug("Using GDP events from local file: %s", gdp_events_path)
         peak_events_client = MockPeakEventClient(gdp_events_path)
     else:
