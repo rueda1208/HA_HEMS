@@ -5,11 +5,10 @@
     "7123:8123",
     "7357:4357"
   ],
-  "postStartCommand": "bash devcontainer_bootstrap",
+  "postStartCommand": "bash devcontainer_bootstrap && sudo service docker start",
   "runArgs": [
     "-e",
     "GIT_EDITOR=code --wait",
-    "--network=host",
     "--privileged"
   ],
   "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",

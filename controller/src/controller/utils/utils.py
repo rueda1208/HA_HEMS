@@ -1,6 +1,5 @@
 import copy
 import datetime
-import json
 import logging
 import os
 
@@ -130,11 +129,7 @@ def create_cop_model() -> Dict[str, Any]:
 
 
 def select_zones_hp_impact(with_impact: bool) -> Dict:
-    # Load configuration
-    with open(os.getenv("OPTIONS_FILE_PATH", "/data/options.json"), "r") as file_path:
-        options_data = json.load(file_path)
-
-    heat_pump_enabled = options_data.get("heat_pump_enabled", False)
+    heat_pump_enabled = os.getenv("HEAT_PUMP_ENABLED", "false").lower() == "true"
 
     # Load config
     with open(CONFIG_FILE_PATH, "r") as f:
@@ -281,19 +276,6 @@ def get_target_temperature(
     else:
         logger.debug(f"Zone {zone_id}: no target temperature found")
         return None
-
-
-def get_environment_sensor_id() -> Union[str, None]:
-    # Load config
-    with open(CONFIG_FILE_PATH, "r") as f:
-        config = yaml.safe_load(f)
-
-    environment_sensor_id = config.get("environment_sensor_id", None)
-    if environment_sensor_id is None:
-        logger.error(f"No environment_sensor_id specified in {CONFIG_FILE_PATH}")
-        return None
-
-    return environment_sensor_id
 
 
 # TODO: Refactor this function to handle hours and minutes in schedule time slots (ex.: 10h30-15h45)

@@ -1,4 +1,5 @@
 import json
+import os
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -46,11 +47,10 @@ class PeakEventClient(BasePeakEventClient):
 
     def __init__(self, hems_api_base_url: str):
         self._hems_api_base_url = hems_api_base_url
+        self._building_id = os.getenv("BUILDING_ID")
 
     def get_peak_events(self) -> List[PeakEvent]:
-        response = requests.get(
-            f"{self._hems_api_base_url}/peak-events",
-        )
+        response = requests.get(f"{self._hems_api_base_url}/peak-events/{self._building_id}", verify=False)
         response.raise_for_status()
         peak_events_data = response.json()
         return [PeakEvent.from_dict(event) for event in peak_events_data]  # type: ignore

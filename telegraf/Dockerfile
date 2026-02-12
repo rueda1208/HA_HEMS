@@ -1,6 +1,11 @@
-# Base image
-FROM telegraf:latest
+ARG BUILD_FROM
+FROM $BUILD_FROM
 
-# Run Telegraf with specified config and watch option
-ENTRYPOINT ["telegraf"]
-CMD ["--config", "/share/telegraf/telegraf.conf", "--watch-config", "poll"]
+RUN apk update && apk add telegraf
+
+COPY telegraf.conf /etc/telegraf/telegraf.conf
+
+COPY run.sh /run.sh
+RUN chmod a+x /run.sh
+
+CMD [ "/run.sh" ]

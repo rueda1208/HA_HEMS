@@ -1,7 +1,6 @@
 name: "Controller"
 slug: "controller"
 description: "Expert System-Based Controller"
-image: "rueda1208/controller"
 version: "1.1.4"
 arch:
   - aarch64
@@ -11,15 +10,22 @@ arch:
 boot: auto
 init: false
 startup: services
-host_network: false
 homeassistant_api: true
+
 map:
   - type: share # This maps Host: /share -> Container: /share
     read_only: false
+
 environment:
   LOGLEVEL: INFO
   TZ: America/Montreal
 options:
   heat_pump_enabled: true
+  hems_api_base_url: "http://hems.hydroquebec.lab:8500"
+  building_id: "HEMSXX"
+  environment_sensor_id: "climate.heat_pump"
 schema:
   heat_pump_enabled: bool
+  hems_api_base_url: str
+  building_id: str
+  environment_sensor_id: str
