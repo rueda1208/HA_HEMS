@@ -1,16 +1,13 @@
-FROM python:3.11.0-slim-bullseye
+ARG BUILD_FROM
+FROM $BUILD_FROM
 
-# Install Poetry tool
-RUN apt-get update && pip3 install poetry && poetry --version
-
-# Create working directory
-WORKDIR /workspaces
+# Install Python & Poetry
+RUN apk update && apk add python3 poetry
 
 # Copy the application files
 COPY . .
 
 # Install the dependencies and create a virtual environment
-RUN poetry install
+RUN chmod a+x /run.sh && poetry install
 
-# Run the Web server
-ENTRYPOINT ["poetry", "run", "python", "-m", "controller.main"]
+CMD [ "/run.sh" ]

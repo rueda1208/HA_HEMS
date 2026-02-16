@@ -1,8 +1,7 @@
 name: "Telegraf"
-slug: "telegraf_configurable"
+slug: "telegraf"
 description: "Telegraf add-on with modular configuration"
-image: "rueda1208/telegraf"
-version: "latest"
+version: "1.0.1"
 arch:
   - aarch64
   - amd64
@@ -11,11 +10,20 @@ arch:
 boot: auto
 init: false
 startup: services
-host_network: true
+homeassistant_api: true
 
 map:
   - type: share # This maps Host: /share -> Container: /share
     read_only: false
 
-options: {}
-schema: {}
+environment:
+  LOGLEVEL: INFO
+  TZ: America/Montreal
+options:
+  hems_api_base_url: "http://hems.hydroquebec.lab:8500"
+  building_id: "HEMSXX"
+  telegraf_config_path: "/etc/telegraf/telegraf.conf"
+schema:
+  hems_api_base_url: str
+  building_id: str
+  telegraf_config_path: str

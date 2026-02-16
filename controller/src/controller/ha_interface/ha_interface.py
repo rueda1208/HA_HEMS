@@ -1,8 +1,8 @@
-import json
 import logging
+import math
 import os
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -99,10 +99,7 @@ class HomeAssistantDeviceInterface:
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Enabled Check ------------------ #
         # --------------------------------------------------------- #
-        with open(os.getenv("OPTIONS_FILE_PATH", "/data/options.json"), "r") as file_path:
-            options_data = json.load(file_path)
-
-        heat_pump_enabled = options_data.get("heat_pump_enabled", False)
+        heat_pump_enabled = os.getenv("HEAT_PUMP_ENABLED", "false").lower() == "true"
 
         # --------------------------------------------------------- #
         # ---------------- Heat Pump Control Logic ---------------- #
@@ -275,10 +272,10 @@ class HomeAssistantDeviceInterface:
 
     def _control_logic_hp(
         self, zones_with_hp_impact_state: Dict[str, Any], heat_pump_mode: str, heat_pump_cop: float
-    ) -> Union[float, None]:
+    ) -> Dict:
         # Get mean inside and target temperatures across all zones
         # TODO: Validate if mean is the best approach here. Maybe consider only the coldest/hottest zone? or a weighted average? or zone with highest HP impact?
-        environment_sensor_id = utils.get_environment_sensor_id()
+        environment_sensor_id = str(os.getenv("ENVIRONMENT_SENSOR_ID"))
         inside_temp = self._get_indoor_temperature(environment_sensor_id)
         target_temp = np.mean([state["target_temperature"] for state in zones_with_hp_impact_state.values()])
         logger.debug(f"Mean inside temperature: {inside_temp} C, Mean target temperature: {target_temp} C")
@@ -295,7 +292,7 @@ class HomeAssistantDeviceInterface:
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == "heat":
             if inside_temp <= target_temp:
-                control_actions["heat_pump"]["setpoint"] = target_temp + 2
+                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp + 2)
                 if heat_pump_cop >= 2.5:
                     control_actions["heat_pump"]["ctrl_state"] = "1.0"
                     for zone_id in zones_with_hp_impact_state.keys():
@@ -306,7 +303,7 @@ class HomeAssistantDeviceInterface:
                         control_actions[zone_id] = target_temp  # Use auxiliary heating (e.g., electric baseboards)
             else:
                 control_actions["heat_pump"]["ctrl_state"] = "3.0"
-                control_actions["heat_pump"]["setpoint"] = target_temp + 1  # Use heat pump only
+                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp + 1)  # Use heat pump only
                 for zone_id in zones_with_hp_impact_state.keys():
                     control_actions[zone_id] = target_temp - 2  # Turn off auxiliary heating
 
@@ -317,10 +314,10 @@ class HomeAssistantDeviceInterface:
 
             if inside_temp > target_temp:
                 control_actions["heat_pump"]["ctrl_state"] = "-1.0"
-                control_actions["heat_pump"]["setpoint"] = target_temp - 1
+                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp - 1)
             else:
                 control_actions["heat_pump"]["ctrl_state"] = "-2.0"
-                control_actions["heat_pump"]["setpoint"] = target_temp
+                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp)
 
         else:
             for zone_id in zones_with_hp_impact_state.keys():
@@ -328,7 +325,7 @@ class HomeAssistantDeviceInterface:
 
         return control_actions
 
-    def _control_logic_thermostat(self, zones_without_hp_impact_state: Dict[str, Any]) -> float:
+    def _control_logic_thermostat(self, zones_without_hp_impact_state: Dict[str, Any]) -> Dict:
         control_actions = {}
         for zone_id, state in zones_without_hp_impact_state.items():
             inside_temp = state["inside_temperature"]
