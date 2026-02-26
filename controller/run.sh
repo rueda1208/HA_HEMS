@@ -12,5 +12,8 @@ export HEAT_PUMP_ENABLED
 ENVIRONMENT_SENSOR_ID="$(bashio::config 'environment_sensor_id')"
 export ENVIRONMENT_SENSOR_ID
 
+WEATHER_ENTITY_ID="$(bashio::config 'weather_entity_id')"
+export WEATHER_ENTITY_ID
+
 bashio::log.info "Starting the controller add-on"
 poetry run python -m controller.main
