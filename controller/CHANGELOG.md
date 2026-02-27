@@ -1,5 +1,9 @@
 ## 1.1.5
 
+- Fixed peak events URL
+
+## 1.1.5
+
 - Changed controller logic
 
 ## 1.1.4
