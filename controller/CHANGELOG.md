@@ -1,3 +1,7 @@
+## 1.1.5
+
+- Changed controller logic
+
 ## 1.1.4
 
 - Extracted peak events and heat pump configurations
