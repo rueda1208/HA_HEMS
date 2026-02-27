@@ -244,16 +244,16 @@ class HomeAssistantDeviceInterface:
                 # Save control state and user preference in database
                 self._save_in_database(
                     data={
-                        "_type": "control",
-                        "zone": "heat_pump",
+                        "metric_type": "control",
+                        "device_id": "climate.heat_pump",
                         "name": "ctrl_state",
                         "value": action["ctrl_state"],
                     }
                 )
                 self._save_in_database(
                     data={
-                        "_type": "control",
-                        "zone": "heat_pump",
+                        "metric_type": "control",
+                        "device_id": "climate.heat_pump",
                         "name": "user_pref",
                         "value": action["user_pref"],
                     }
@@ -410,8 +410,8 @@ class HomeAssistantDeviceInterface:
 
         self._save_in_database(
             data={
-                "_type": "control",
-                "zone": control_actions.get("entity_id", "unknown").split(".")[1],
+                "metric_type": "control",
+                "device_id": control_actions.get("entity_id", "unknown"),
                 "name": action_name,
                 "value": action_value,
             }

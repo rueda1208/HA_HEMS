@@ -1,3 +1,7 @@
+## 1.1.7
+
+- Fixed local save of control action
+
 ## 1.1.6
 
 - Fixed peak events URL
