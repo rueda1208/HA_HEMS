@@ -421,13 +421,13 @@ class HomeAssistantDeviceInterface:
     def _save_in_database(self, data: Dict[str, Any]) -> None:
         data_to_save = pd.DataFrame(
             data=[  # Single row of data
-                [data.get("_type", "unknown")]
-                + [data.get("zone", "unknown")]
+                [data.get("metric_type", "unknown")]
+                + [data.get("device_id", "unknown")]
                 + [data.get("name", "unknown")]
                 + [data.get("value", np.nan)]
             ],
             index=[pd.Timestamp.now(tz="UTC").replace(microsecond=0)],  # Single timestamp index
-            columns=["_type", "zone", "name", "value"],  # Column names
+            columns=["metric_type", "device_id", "name", "value"],  # Column names
         )
         # Set the index name to 'time'
         data_to_save.index.name = "time"
