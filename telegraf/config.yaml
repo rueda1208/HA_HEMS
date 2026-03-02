@@ -1,7 +1,7 @@
 name: "Telegraf"
 slug: "telegraf"
 description: "Telegraf add-on with modular configuration"
-version: "1.0.1"
+version: "1.0.2"
 arch:
   - aarch64
   - amd64
@@ -20,7 +20,7 @@ environment:
   LOGLEVEL: INFO
   TZ: America/Montreal
 options:
-  hems_api_base_url: "http://hems.hydroquebec.lab:8500"
+  hems_api_base_url: "http://hems-api.hydroquebec.lab:8500"
   building_id: "HEMSXX"
   telegraf_config_path: "/etc/telegraf/telegraf.conf"
 schema:
