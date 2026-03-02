@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.space_heating (
   device_id   TEXT,
   metric_type TEXT,
   name        TEXT,
-  value       DOUBLE PRECISION
+  value       TEXT
 );
 
 -- If TimescaleDB is present, this will do nothing if the hypertable already exists
