@@ -2,6 +2,7 @@ import logging
 import os
 import time
 
+import requests
 import schedule
 
 from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
@@ -12,31 +13,39 @@ def main() -> None:
     # Set up logging
     utils.setup_logging("controller.log")
     logger = logging.getLogger(__name__)
+    logger.info("Starting controller module ...")
 
     base_url = os.getenv("BASE_HA_URL", "http://supervisor/core")
     token = str(os.getenv("SUPERVISOR_TOKEN"))
-
-    logger.info("Starting controller module ...")
+    hems_api_base_url = os.getenv("HEMS_API_BASE_URL", "http://hems-api.hydroquebec.lab:8500")
+    building_id = os.getenv("BUILDING_ID")
 
     # Retrieve the list of devices from Home Assistant.
     ha_interface = HomeAssistantDeviceInterface(base_url, token)
 
-    # Get list of devices from Home Assistant
-    devices_list = ha_interface.get_devices_list()
-
-    # Update config.yaml with any new zones found in Home Assistant
-    utils.update_config_with_zones(zones=devices_list)
-
-    # Create heat pump COP model from config data
-    heat_pump_cop_models = utils.create_cop_model()
-
     # Main control loop
     def _main_loop():
-        devices_state = ha_interface.get_device_state(devices_list)
-        control_actions = ha_interface.get_control_actions(
-            devices_state=devices_state, heat_pump_cop_models=heat_pump_cop_models
-        )
-        ha_interface.execute_control_actions(control_actions=control_actions, devices_state=devices_state)
+        # Get the state of all the devices in Home Assistant
+        devices_states = ha_interface.get_devices_states()
+
+        # Create heat pump COP model from config data
+        heat_pump_cop_models = utils.create_cop_model()
+
+        control_actions = ha_interface.get_control_actions(devices_states, heat_pump_cop_models)
+
+        ha_interface.execute_control_actions(control_actions, devices_states)
+
+        metric = {
+            "metrics": [
+                {
+                    "name": "home_automation",
+                    "fields": {"name": "refresh_status", "value": "success"},
+                    "tags": {"device_id": "ha_controller", "metric_type": "event"},
+                    "timestamp": int(time.time()),
+                }
+            ]
+        }
+        requests.post(f"{hems_api_base_url}/api/devices/{building_id}", json=metric, verify=False)
 
     try:
         # Execute one time on start
