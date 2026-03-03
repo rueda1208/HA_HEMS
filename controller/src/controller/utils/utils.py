@@ -360,7 +360,8 @@ def _get_manual_override_temperature(
     setpoint_configuration = configuration.get(device_id, {}).get("setpoint", {})
 
     if setpoint_configuration.get("source", {}) == "parameter_override":
-        override_timestamp = setpoint_configuration.get("timestamp", 0)
+        timestamp_value = setpoint_configuration.get("timestamp", 0)
+        override_timestamp = datetime.datetime.fromisoformat(timestamp_value).timestamp()
         if override_timestamp > schedule_entry_timestamp:
             # Manual override is newer than the schedule entry, it should take precedence
             override_value = setpoint_configuration.get("value")
