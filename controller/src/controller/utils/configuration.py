@@ -39,7 +39,7 @@ class RestConfigurationClient(ConfigurationClient):
     def get_configuration(self, day: int) -> Dict[str, Any]:
         parameters = {"day": day}
         response = requests.get(
-            f"{self._hems_api_base_url}/configuration/{self._building_id}", params=parameters, verify=False
+            f"{self._hems_api_base_url}/api/devices/{self._building_id}", params=parameters, verify=False
         )
         response.raise_for_status()
         configuration_data = response.json()

@@ -190,7 +190,7 @@ class HomeAssistantDeviceInterface:
                     logger.info(f"Setting heat pump state to {action['state']}")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
                     params = {
-                        "action": {"entity_id": device_id, "hvac_mode": action["state"].value},
+                        "action": {"entity_id": "climate." + device_id, "hvac_mode": action["state"].value},
                     }
 
                     self.send_action(credentials, params)
@@ -206,7 +206,7 @@ class HomeAssistantDeviceInterface:
                         logger.info(f"Setting heat pump setpoint to {setpoint} C")
                         credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
                         params = {
-                            "action": {"entity_id": device_id, "temperature": setpoint},
+                            "action": {"entity_id": "climate." + device_id, "temperature": setpoint},
                         }
 
                         self.send_action(credentials, params)
@@ -251,7 +251,7 @@ class HomeAssistantDeviceInterface:
         # TODO: Validate if mean is the best approach here. Maybe consider only the coldest/hottest zone? or a weighted average? or zone with highest HP impact?
         environment_sensor_id = str(os.getenv("ENVIRONMENT_SENSOR_ID"))
         inside_temp = self._get_indoor_temperature(environment_sensor_id, devices_states)
-        target_temp = np.mean([state["target_temperature"] for state in zones_with_hp_impact_state.values()])
+        target_temp = np.mean([float(state["target_temperature"]) for state in zones_with_hp_impact_state.values()])
         logger.debug(f"Mean inside temperature: {inside_temp} C, Mean target temperature: {target_temp} C")
 
         # Determine control action for each zone based on heat pump mode and COP
