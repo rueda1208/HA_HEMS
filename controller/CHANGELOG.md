@@ -1,3 +1,7 @@
+## 1.1.9
+
+- Small fixes
+
 ## 1.1.8
 
 - Fixed column names for local save of control action
