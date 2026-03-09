@@ -1,3 +1,7 @@
+## 1.1.10
+
+- Changed heatpump threshold for heating to 18 degrees
+
 ## 1.1.9
 
 - Small fixes
