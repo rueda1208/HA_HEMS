@@ -78,7 +78,7 @@ class HomeAssistantDeviceInterface:
         elif outside_temperature > 20:
             heat_pump_mode = utils.HeatPumpMode.COOL
             logger.debug("Using cooling COP model")
-        elif outside_temperature < 10:
+        elif outside_temperature < 18:
             heat_pump_mode = utils.HeatPumpMode.HEAT
             logger.debug("Using heating COP model")
         else:
