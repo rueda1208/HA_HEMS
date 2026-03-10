@@ -1,3 +1,7 @@
+## 1.1.11
+
+- Moved heatpump automated control flag from HA add-on parameter to the UI
+
 ## 1.1.10
 
 - Changed heatpump threshold for heating to 18 degrees

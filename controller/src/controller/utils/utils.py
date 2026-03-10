@@ -76,7 +76,12 @@ def create_cop_model() -> Dict[HeatPumpMode, np.poly1d]:
 
 
 def select_zones_hp_impact(with_impact: bool, configuration: Dict[str, Dict]) -> Dict[str, float]:
-    heat_pump_enabled = os.getenv("HEAT_PUMP_ENABLED", "false").lower() == "true"
+    heat_pump_enabled = (
+        str(
+            configuration.get("climate.heat_pump", {}).get("automated_control_enabled", {}).get("value", "false")
+        ).lower()
+        == "true"
+    )
 
     result = {}
     for device_id, device_configuration in configuration.items():

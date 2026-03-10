@@ -66,8 +66,6 @@ class HomeAssistantDeviceInterface:
         else:
             logger.info("No GDP event detected, proceeding with normal control strategy")
 
-        heat_pump_enabled = os.getenv("HEAT_PUMP_ENABLED", "false").lower() == "true"
-
         logger.info("Determining control actions for heat pump impacted zones")
 
         # Calculate heat pump COP based on current outside temperature
@@ -97,6 +95,13 @@ class HomeAssistantDeviceInterface:
         configuration = utils.retrieve_device_configuration()
         zones_with_hp_impact = utils.select_zones_hp_impact(True, configuration)
         logger.debug(f"Zones with heat pump impact: {list(zones_with_hp_impact.keys())}")
+
+        heat_pump_enabled = (
+            str(
+                configuration.get("climate.heat_pump", {}).get("automated_control_enabled", {}).get("value", "false")
+            ).lower()
+            == "true"
+        )
 
         if not zones_with_hp_impact:
             control_actions = {}
