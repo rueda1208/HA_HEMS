@@ -335,6 +335,16 @@ def get_target_from_schedule(
                 # On prend simplement la dernière entrée de ce jour.
                 minutes, target_temperature = converted_schedule[-1]
 
+                # Convert schedule entry time to timestamp for comparison with manual override entries
+                schedule_entry_timestamp = (
+                    datetime.datetime.combine(
+                        datetime.datetime.now().astimezone().date() - datetime.timedelta(days=offset),
+                        datetime.time(hour=minutes // 60, minute=minutes % 60),
+                    )
+                    .astimezone()
+                    .timestamp()
+                )
+
                 # Check for manual override newer than this schedule entry
                 manual_override_temperature = _get_manual_override_temperature(
                     schedule_entry_timestamp, devices_states, configuration, device_id
