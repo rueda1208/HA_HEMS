@@ -299,16 +299,6 @@ def get_target_from_schedule(
             # Trie par heure croissante
             converted_schedule.sort(key=lambda x: x[0])
 
-            # Convert schedule entry time to timestamp for comparison with manual override entries
-            schedule_entry_timestamp = (
-                datetime.datetime.combine(
-                    datetime.datetime.now().date() - datetime.timedelta(days=offset),
-                    datetime.time(hour=minutes // 60, minute=minutes % 60),
-                )
-                .astimezone()
-                .timestamp()
-            )
-
             if offset == 0:
                 # Même jour: on ne garde que les entrées <= heure actuelle
                 candidates = [
@@ -320,6 +310,16 @@ def get_target_from_schedule(
 
                 # Dernière entrée avant ou à l'heure courante
                 minutes, target_temperature = candidates[-1]
+
+                # Convert schedule entry time to timestamp for comparison with manual override entries
+                schedule_entry_timestamp = (
+                    datetime.datetime.combine(
+                        datetime.datetime.now().astimezone().date() - datetime.timedelta(days=offset),
+                        datetime.time(hour=minutes // 60, minute=minutes % 60),
+                    )
+                    .astimezone()
+                    .timestamp()
+                )
 
                 # Check for manual override after this schedule entry
                 manual_override_temperature = _get_manual_override_temperature(
