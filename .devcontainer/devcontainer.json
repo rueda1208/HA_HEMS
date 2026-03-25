@@ -1,5 +1,5 @@
 {
-  "name": "Example devcontainer for add-on repositories",
+  "name": "HA add-on development",
   "dockerFile": "Dockerfile",
   "appPort": [
     "7123:8123",

@@ -32,6 +32,8 @@ db_url = (
 # Create SQLAlchemy engine
 postgres_db_engine = create_engine(db_url)
 
+HEAT_PUMP_ENTITY_ID = "climate.heat_pump"
+
 
 class HomeAssistantDeviceInterface:
     _url_base: str
@@ -73,15 +75,16 @@ class HomeAssistantDeviceInterface:
         outside_temperature = devices_states.get(weather_entity_id, {}).get("attributes", {}).get("temperature")
         if outside_temperature is None:
             raise ValueError("Outside temperature is None, cannot compute heat pump COP.")
-        elif outside_temperature > 20:
+
+        configuration = utils.retrieve_device_configuration()
+
+        hvac_mode_str = configuration.get(HEAT_PUMP_ENTITY_ID, {}).get("hvac_mode", {}).get("value", "off")
+        if hvac_mode_str == utils.HeatPumpMode.COOL.value:
             heat_pump_mode = utils.HeatPumpMode.COOL
-            logger.debug("Using cooling COP model")
-        elif outside_temperature < 18:
+        elif hvac_mode_str == utils.HeatPumpMode.HEAT.value:
             heat_pump_mode = utils.HeatPumpMode.HEAT
-            logger.debug("Using heating COP model")
         else:
             heat_pump_mode = utils.HeatPumpMode.OFF
-            logger.debug("Outside temperature in neutral range, heat pump turned off")
 
         if heat_pump_mode == utils.HeatPumpMode.OFF:
             heat_pump_cop = 0.0
@@ -89,16 +92,18 @@ class HomeAssistantDeviceInterface:
         else:
             heat_pump_cop_model = heat_pump_cop_models[heat_pump_mode]
             heat_pump_cop = heat_pump_cop_model(outside_temperature)
-        logger.info(f"Outside temperature: {outside_temperature} C, Heat Pump COP: {heat_pump_cop:.2f}")
+
+        logger.info(
+            f"Outside temperature: {outside_temperature} C, Heat Pump COP: {heat_pump_cop:.2f}, Heat Pump mode: {heat_pump_mode}"  # noqa: E501
+        )
 
         # Select zones with heat pump impact
-        configuration = utils.retrieve_device_configuration()
         zones_with_hp_impact = utils.select_zones_hp_impact(True, configuration)
         logger.debug(f"Zones with heat pump impact: {list(zones_with_hp_impact.keys())}")
 
         heat_pump_enabled = (
             str(
-                configuration.get("climate.heat_pump", {}).get("automated_control_enabled", {}).get("value", "false")
+                configuration.get(HEAT_PUMP_ENTITY_ID, {}).get("automated_control_enabled", {}).get("value", "false")
             ).lower()
             == "true"
         )
@@ -119,7 +124,7 @@ class HomeAssistantDeviceInterface:
                 logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
 
                 hp_target_temperature = utils.get_target_temperature(
-                    "climate.heat_pump", devices_states, configuration, gdp_event
+                    HEAT_PUMP_ENTITY_ID, devices_states, configuration, gdp_event
                 )
                 logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
 
@@ -189,7 +194,7 @@ class HomeAssistantDeviceInterface:
         for device_id, action in control_actions.items():
             if device_id == "heat_pump":
                 # Set heat pump mode
-                if action["state"].value == devices_states.get("climate.heat_pump", {}).get("state"):
+                if action["state"].value == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("state"):
                     logger.info(f"No change to heat pump state requested (remains {action['state']})")
                 else:
                     logger.info(f"Setting heat pump state to {action['state']}")
@@ -198,14 +203,14 @@ class HomeAssistantDeviceInterface:
                         "action": {"entity_id": "climate." + device_id, "hvac_mode": action["state"].value},
                     }
 
-                    self.send_action(credentials, params)
+                    self._send_action(credentials, params)
 
                 # Set heat pump temperature setpoint
                 if action["state"] == utils.HeatPumpMode.OFF:
                     logger.info("Heat pump turned off, skipping setpoint adjustment")
                 else:
                     setpoint = action["setpoint"]
-                    if setpoint == devices_states.get("climate.heat_pump", {}).get("temperature"):
+                    if setpoint == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("temperature"):
                         logger.info(f"No change to heat pump setpoint requested (remains {setpoint} C)")
                     else:
                         logger.info(f"Setting heat pump setpoint to {setpoint} C")
@@ -214,13 +219,13 @@ class HomeAssistantDeviceInterface:
                             "action": {"entity_id": "climate." + device_id, "temperature": setpoint},
                         }
 
-                        self.send_action(credentials, params)
+                        self._send_action(credentials, params)
 
                 # Save control state and user preference in database
                 self._save_in_database(
                     data={
                         "metric_type": "control",
-                        "device_id": "climate.heat_pump",
+                        "device_id": HEAT_PUMP_ENTITY_ID,
                         "name": "ctrl_state",
                         "value": action["ctrl_state"],
                     }
@@ -228,7 +233,7 @@ class HomeAssistantDeviceInterface:
                 self._save_in_database(
                     data={
                         "metric_type": "control",
-                        "device_id": "climate.heat_pump",
+                        "device_id": HEAT_PUMP_ENTITY_ID,
                         "name": "user_pref",
                         "value": action["user_pref"],
                     }
@@ -243,7 +248,7 @@ class HomeAssistantDeviceInterface:
                     params = {
                         "action": {"entity_id": device_id, "temperature": action},
                     }
-                    self.send_action(credentials, params)
+                    self._send_action(credentials, params)
 
     def _control_logic_hp(
         self,
@@ -350,7 +355,7 @@ class HomeAssistantDeviceInterface:
             }
         return zone_metrics
 
-    def send_action(self, credentials: dict, params: dict) -> None:
+    def _send_action(self, credentials: dict, params: dict) -> None:
         api_url = credentials["api_url"]
         headers = credentials["headers"]
         action = params["action"]

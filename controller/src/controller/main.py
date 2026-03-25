@@ -9,6 +9,8 @@ from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 from controller.utils import utils
 
 
+# JFA
+# heating, cooling, off
 def main() -> None:
     # Set up logging
     utils.setup_logging("controller.log")
@@ -29,7 +31,7 @@ def main() -> None:
         devices_states = ha_interface.get_devices_states()
 
         # Create heat pump COP model from config data
-        heat_pump_cop_models = utils.create_cop_model()
+        heat_pump_cop_models = utils.create_cop_model(hems_api_base_url)
 
         control_actions = ha_interface.get_control_actions(devices_states, heat_pump_cop_models)
 

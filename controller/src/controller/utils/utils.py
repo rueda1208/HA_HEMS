@@ -7,7 +7,7 @@ from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict, Tuple, Union
 
 import numpy as np
-import yaml
+import requests
 
 from controller.utils.configuration import ConfigurationClient, MockConfigurationClient, RestConfigurationClient
 from controller.utils.peak_events import BasePeakEventClient, MockPeakEventClient, PeakEvent, PeakEventClient
@@ -51,16 +51,14 @@ def setup_logging(filename: str):
     )
 
 
-def create_cop_model() -> Dict[HeatPumpMode, np.poly1d]:
-    # Load config
-    heat_pump_config_file_path = os.getenv("HEAT_PUMP_CONFIG_FILE_PATH", "/share/controller/config/heat-pump.yaml")
-    with open(heat_pump_config_file_path, "r") as f:
-        config = yaml.safe_load(f)
+def create_cop_model(hems_api_base_url: str) -> Dict[HeatPumpMode, np.poly1d]:
+    heat_pump_model = os.getenv("HEAT_PUMP_MODEL", "DLCERBH18AAK")
+    response = requests.get(f"{hems_api_base_url}/api/devices/specifications/{heat_pump_model}", verify=False)
+    response.raise_for_status()
+    heat_pump_specifications = response.json()
 
-    # Load heat_pump_performance_specs
-    heat_pump_performance_specs = config.get("heat_pump_performance_specs", {})
-    hp_cooling_performance_specs = heat_pump_performance_specs.get("cooling", {}).get("COP_points", {})
-    hp_heating_performance_specs = heat_pump_performance_specs.get("heating", {}).get("COP_points", {})
+    hp_cooling_performance_specs = heat_pump_specifications.get("cooling", {}).get("COP_points", {})
+    hp_heating_performance_specs = heat_pump_specifications.get("heating", {}).get("COP_points", {})
 
     # Create regression model using heating COP data points
     outside_temperatures_list = [data["outdoor_dry_bulb_C"] for data in hp_cooling_performance_specs.values()]
@@ -356,7 +354,7 @@ def get_target_from_schedule(
                 return target_temperature, False
 
     # Aucune consigne trouvée sur la semaine ou aucune cédule trouvée pour ce device
-    # Retourner le setpoint par default des parametres (qui pourrait être un default, manual override ou metric)
+    # Retourner le setpoint par default des parametres (qui pourrait être un default, override manuel)
     default_temperature = device_settings.get("setpoint", {}).get("value")
     if default_temperature is None:
         logger.error(
@@ -374,7 +372,7 @@ def _get_manual_override_temperature(
     # Check if there is a manual override entry in the configuration for the device_id (from IHD)
     setpoint_configuration = configuration.get(device_id, {}).get("setpoint", {})
 
-    if setpoint_configuration.get("source", {}) == "parameter_override":
+    if setpoint_configuration.get("source", {}) == "parameter":
         timestamp_value = setpoint_configuration.get("timestamp", 0)
         override_timestamp = datetime.datetime.fromisoformat(timestamp_value).timestamp()
         if override_timestamp > schedule_entry_timestamp:

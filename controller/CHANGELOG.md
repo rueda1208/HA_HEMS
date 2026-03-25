@@ -1,3 +1,6 @@
+## 1.1.12
+- Now getting heatpump specifications from backend
+
 ## 1.1.11
 
 - Moved heatpump automated control flag from HA add-on parameter to the UI
