@@ -98,7 +98,7 @@ class HomeAssistantDeviceInterface:
         )
 
         # Select zones with heat pump impact
-        zones_with_hp_impact = utils.select_zones_hp_impact(True, configuration)
+        zones_with_hp_impact = utils.select_zones_with_hp_impact(HEAT_PUMP_ENTITY_ID, configuration)
         logger.debug(f"Zones with heat pump impact: {list(zones_with_hp_impact.keys())}")
 
         heat_pump_enabled = (
@@ -114,7 +114,7 @@ class HomeAssistantDeviceInterface:
             if not heat_pump_enabled:
                 logger.warning("Heat pump is disabled in configuration. Skipping heat pump control logic.")
 
-                control_actions["heat_pump"] = {
+                control_actions[HEAT_PUMP_ENTITY_ID] = {
                     "state": "off",
                     "setpoint": None,
                     "user_pref": -99.0,
@@ -128,7 +128,7 @@ class HomeAssistantDeviceInterface:
                 )
                 logger.debug(f"Heat pump target temperature: {hp_target_temperature} C")
 
-                control_actions["heat_pump"] = {
+                control_actions[HEAT_PUMP_ENTITY_ID] = {
                     "state": heat_pump_mode,
                     "setpoint": hp_target_temperature,
                     "user_pref": hp_target_temperature,
@@ -156,7 +156,7 @@ class HomeAssistantDeviceInterface:
         logger.info("Determining control actions for non-heat pump impacted zones")
 
         # Select zones with heat pump impact
-        zones_without_hp_impact_state = utils.select_zones_hp_impact(False, configuration)
+        zones_without_hp_impact_state = utils.select_zones_without_hp_impact(HEAT_PUMP_ENTITY_ID, configuration)
         logger.debug(f"Zones without heat pump impact: {zones_without_hp_impact_state}")
 
         if not zones_without_hp_impact_state:
@@ -191,8 +191,8 @@ class HomeAssistantDeviceInterface:
             logger.info("No control actions to execute")
             return
 
-        for device_id, action in control_actions.items():
-            if device_id == "heat_pump":
+        for entity_id, action in control_actions.items():
+            if entity_id == HEAT_PUMP_ENTITY_ID:
                 # Set heat pump mode
                 if action["state"].value == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("state"):
                     logger.info(f"No change to heat pump state requested (remains {action['state']})")
@@ -200,7 +200,7 @@ class HomeAssistantDeviceInterface:
                     logger.info(f"Setting heat pump state to {action['state']}")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
                     params = {
-                        "action": {"entity_id": "climate." + device_id, "hvac_mode": action["state"].value},
+                        "action": {"entity_id": HEAT_PUMP_ENTITY_ID, "hvac_mode": action["state"].value},
                     }
 
                     self._send_action(credentials, params)
@@ -216,7 +216,7 @@ class HomeAssistantDeviceInterface:
                         logger.info(f"Setting heat pump setpoint to {setpoint} C")
                         credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
                         params = {
-                            "action": {"entity_id": "climate." + device_id, "temperature": setpoint},
+                            "action": {"entity_id": HEAT_PUMP_ENTITY_ID, "temperature": setpoint},
                         }
 
                         self._send_action(credentials, params)
@@ -240,13 +240,13 @@ class HomeAssistantDeviceInterface:
                 )
             else:
                 # Set zone temperature setpoint
-                if action == devices_states.get(device_id, {}).get("temperature"):
-                    logger.info(f"No change to zone {device_id} temperature requested (remains {action} C)")
+                if action == devices_states.get(entity_id, {}).get("temperature"):
+                    logger.info(f"No change to zone {entity_id} temperature requested (remains {action} C)")
                 else:
-                    logger.info(f"Setting zone {device_id} temperature to {action} C")
+                    logger.info(f"Setting zone {entity_id} temperature to {action} C")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
                     params = {
-                        "action": {"entity_id": device_id, "temperature": action},
+                        "action": {"entity_id": entity_id, "temperature": action},
                     }
                     self._send_action(credentials, params)
 
@@ -267,7 +267,7 @@ class HomeAssistantDeviceInterface:
         # Determine control action for each zone based on heat pump mode and COP
         control_actions: Dict[str, Any] = {}
 
-        control_actions["heat_pump"] = {
+        control_actions[HEAT_PUMP_ENTITY_ID] = {
             "state": heat_pump_mode,
             "setpoint": None,
             "user_pref": target_temp,
@@ -277,18 +277,18 @@ class HomeAssistantDeviceInterface:
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == utils.HeatPumpMode.HEAT:
             if inside_temp <= target_temp:
-                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp + 2)
+                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + 2)
                 if heat_pump_cop >= 2.5:
-                    control_actions["heat_pump"]["ctrl_state"] = "1.0"
+                    control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "1.0"
                     for zone_id in zones_with_hp_impact_state.keys():
                         control_actions[zone_id] = target_temp - 1  # Slightly lower setpoint for zones
                 else:
-                    control_actions["heat_pump"]["ctrl_state"] = "2.0"
+                    control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "2.0"
                     for zone_id in zones_with_hp_impact_state.keys():
                         control_actions[zone_id] = target_temp  # Use auxiliary heating (e.g., electric baseboards)
             else:
-                control_actions["heat_pump"]["ctrl_state"] = "3.0"
-                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp + 1)  # Use heat pump only
+                control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "3.0"
+                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + 1)  # Use heat pump only
                 for zone_id in zones_with_hp_impact_state.keys():
                     control_actions[zone_id] = target_temp - 2  # Turn off auxiliary heating
 
@@ -298,11 +298,11 @@ class HomeAssistantDeviceInterface:
                 control_actions[zone_id] = 5  # Use a lower setpoint to ensure to turn off heating
 
             if inside_temp > target_temp:
-                control_actions["heat_pump"]["ctrl_state"] = "-1.0"
-                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp - 1)
+                control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "-1.0"
+                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp - 1)
             else:
-                control_actions["heat_pump"]["ctrl_state"] = "-2.0"
-                control_actions["heat_pump"]["setpoint"] = math.ceil(target_temp)
+                control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "-2.0"
+                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp)
 
         else:
             for zone_id in zones_with_hp_impact_state.keys():

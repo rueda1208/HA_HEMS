@@ -1,10 +1,7 @@
-# Home Assistant Add-on: Example add-on
+# Home Assistant Add-on: Telegraf add-on
 
-## How to use
+## What is does
 
-This add-on really does nothing. It is just an example.
-
-When started it will print the configured message or "Hello world" in the log.
-
-It will also print "All done!" in `/share/example_addon_output.txt` to show
-simple example of the usage of `map` in addon config.
+This add-on sends metrics to:
+- A local TimescaleDB instance (TimescaleDB add-on needs to be installed)
+- Remote HEMS API server using HTTP POST messages

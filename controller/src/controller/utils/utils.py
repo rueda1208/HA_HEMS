@@ -73,18 +73,28 @@ def create_cop_model(hems_api_base_url: str) -> Dict[HeatPumpMode, np.poly1d]:
     return {HeatPumpMode.COOL: cooling_cop_model, HeatPumpMode.HEAT: heating_cop_model}
 
 
-def select_zones_hp_impact(with_impact: bool, configuration: Dict[str, Dict]) -> Dict[str, float]:
+def select_zones_with_hp_impact(heat_pump_entity_id: str, configuration: Dict[str, Dict]) -> Dict[str, float]:
+    return _select_zones_hp_impact(heat_pump_entity_id, True, configuration)
+
+
+def select_zones_without_hp_impact(heat_pump_entity_id: str, configuration: Dict[str, Dict]) -> Dict[str, float]:
+    return _select_zones_hp_impact(heat_pump_entity_id, False, configuration)
+
+
+def _select_zones_hp_impact(
+    heat_pump_entity_id: str, with_impact: bool, configuration: Dict[str, Dict]
+) -> Dict[str, float]:
     heat_pump_enabled = (
         str(
-            configuration.get("climate.heat_pump", {}).get("automated_control_enabled", {}).get("value", "false")
+            configuration.get(heat_pump_entity_id, {}).get("automated_control_enabled", {}).get("value", "false")
         ).lower()
         == "true"
     )
 
     result = {}
-    for device_id, device_configuration in configuration.items():
+    for entity_id, device_configuration in configuration.items():
         # Skip heat pump itself
-        if "heat_pump" in device_id:
+        if heat_pump_entity_id == entity_id:
             continue
 
         # Get heat pump impact setting
@@ -94,12 +104,12 @@ def select_zones_hp_impact(with_impact: bool, configuration: Dict[str, Dict]) ->
         if not heat_pump_enabled:
             if with_impact:
                 continue
-            result[device_id] = 0.0
+            result[entity_id] = 0.0
             continue
 
         # Heat pump enabled
         if (impact > 0.0) == with_impact:
-            result[device_id] = impact
+            result[entity_id] = impact
 
     return result
 
