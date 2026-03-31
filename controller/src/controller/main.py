@@ -9,8 +9,14 @@ from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 from controller.utils import utils
 
 
-# JFA
-# heating, cooling, off
+# Enlever controle automatise (bouton) on le met global (nouveau concept de parametre global)
+# mode operation mettre global (periode de chauffe, periode de clim, off)
+# compensation - lie a la thermopompe (pas a la zone)
+
+# backend: voir si la thermopompe est geree automatiquement lorsque non en zone (horaire, setpoint)
+# voir pour le mode global, on ne chauffe pas
+
+
 def main() -> None:
     # Set up logging
     utils.setup_logging("controller.log")

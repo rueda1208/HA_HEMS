@@ -1,3 +1,6 @@
+## 1.1.13
+- Refactored heat pump control logic
+
 ## 1.1.12
 - Now getting heatpump specifications from backend
 

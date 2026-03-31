@@ -1,15 +1,18 @@
 import logging
 import math
 import os
+
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 import requests
+
 from sqlalchemy import create_engine, text
 
 from controller.utils import utils
 from controller.utils.peak_events import PeakEvent
+
 
 logger = logging.getLogger(__name__)
 
