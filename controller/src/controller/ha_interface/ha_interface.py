@@ -1,18 +1,15 @@
 import logging
 import math
 import os
-
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 import requests
-
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from controller.utils import utils
 from controller.utils.peak_events import PeakEvent
-
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +115,6 @@ class HomeAssistantDeviceInterface:
                     "state": "off",
                     "setpoint": None,
                     "user_pref": -99.0,
-                    "ctrl_state": -99.0,
                 }
             else:
                 logger.warning("No zones with heat pump impact found. Using user preferences for heat pump control.")
@@ -132,7 +128,6 @@ class HomeAssistantDeviceInterface:
                     "state": heat_pump_mode,
                     "setpoint": hp_target_temperature,
                     "user_pref": hp_target_temperature,
-                    "ctrl_state": 0.0,
                 }
         else:
             # Get state information for zones with heat pump impact
@@ -221,15 +216,7 @@ class HomeAssistantDeviceInterface:
 
                         self._send_action(credentials, params)
 
-                # Save control state and user preference in database
-                self._save_in_database(
-                    data={
-                        "metric_type": "control",
-                        "device_id": HEAT_PUMP_ENTITY_ID,
-                        "name": "ctrl_state",
-                        "value": action["ctrl_state"],
-                    }
-                )
+                # Save user preference in database
                 self._save_in_database(
                     data={
                         "metric_type": "control",
@@ -271,38 +258,104 @@ class HomeAssistantDeviceInterface:
             "state": heat_pump_mode,
             "setpoint": None,
             "user_pref": target_temp,
-            "ctrl_state": -99.0,
         }
+
+        # Configurable parameters for control logic
+        max_heat_push = 1.5  # Maximum heating push (positive value) to avoid excessive heating, to be tuned based on system response and desired comfort levels
+        max_cool_push = -2.0  # Maximum cooling push (negative value) to avoid excessive cooling, to be tuned based on system response and desired comfort levels
+
+        Kp = 0.35  # Proportional gain for temperature error adjustment, to be tuned based on system response and desired aggressiveness of control actions
+
+        cop_low = 1.3  # Threshold below which the heat pump is considered inefficient and the control logic relies more on auxiliary heating
+        cop_good = 2.0  # Threshold above which the heat pump is considered efficient and the control logic relies more on the heat pump
+        cop_excellent = 3.0  # Threshold above which the heat pump is considered very efficient and the control logic pushes more on the heat pump
+
+        temp_tolerance = 0.3  # Degrees Celsius tolerance to avoid excessive on/off cycling
+        # TODO: Get this value from configuration or compute it based on data (automatic) instead of hardcoding it here.
+        # TODO: Use a value for cooling and others for heating instead of a single value for both modes ?
+        heat_pump_calibration_offset = 2.0  # Degrees Celsius offset to account for heat pump compensation
+
+        # Get indoor temperature trend to adjust control actions dynamically and avoid excessive on/off cycling of heat pump and auxiliary heating
+        temp_trend = self._get_indoor_temperature_trend(environment_sensor_id)
 
         # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == utils.HeatPumpMode.HEAT:
-            if inside_temp <= target_temp:
-                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + 2)
-                if heat_pump_cop >= 2.5:
-                    control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "1.0"
-                    for zone_id in zones_with_hp_impact_state.keys():
-                        control_actions[zone_id] = target_temp - 1  # Slightly lower setpoint for zones
+            # Set heat pump setpoint with calibration offset
+            control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + heat_pump_calibration_offset)
+
+            # Calculate temperature error and trend to adjust thermostat setpoints dynamically
+            temp_error = target_temp - inside_temp  # + = frío
+            thermostat_adjustment = 0.0
+
+            # Proportional control adjustment based on temperature error
+            proportional_adjustment = Kp * temp_error
+
+            # Thermostat adjustment logic
+            if inside_temp <= target_temp - temp_tolerance:
+                # Cool zone
+                if temp_trend is not None and temp_trend < 0:
+                    thermostat_adjustment = +1.2
+                elif temp_trend is not None and temp_trend > 0:
+                    thermostat_adjustment = +0.3
                 else:
-                    control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "2.0"
-                    for zone_id in zones_with_hp_impact_state.keys():
-                        control_actions[zone_id] = target_temp  # Use auxiliary heating (e.g., electric baseboards)
+                    thermostat_adjustment = +0.6
+                logger.debug(
+                    f"Zone is cool, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
+                )
+
+            elif inside_temp >= target_temp + temp_tolerance:
+                # Hot zone
+                if temp_trend is not None and temp_trend > 0:
+                    thermostat_adjustment = -2.0
+                elif temp_trend is not None and temp_trend < 0:
+                    thermostat_adjustment = -0.5
+                else:
+                    thermostat_adjustment = -1.0
+                logger.debug(
+                    f"Zone is hot, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
+                )
+
             else:
-                control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "3.0"
-                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + 1)  # Use heat pump only
-                for zone_id in zones_with_hp_impact_state.keys():
-                    control_actions[zone_id] = target_temp - 2  # Turn off auxiliary heating
+                # Neutral zone
+                if temp_trend is not None and temp_trend > 0:
+                    thermostat_adjustment = -0.5
+                elif temp_trend is not None and temp_trend < 0:
+                    thermostat_adjustment = +0.5
+                else:
+                    thermostat_adjustment = 0.0
+                logger.debug(
+                    f"Zone is neutral, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
+                )
+
+            # Add proportional adjustment and modulate by heat pump COP
+            thermostat_adjustment += proportional_adjustment
+            if thermostat_adjustment > 0 and heat_pump_cop is not None:
+                if heat_pump_cop < cop_low:
+                    # Inefficient heat pump → let the resistive do the work
+                    thermostat_adjustment *= 0.4
+
+                elif heat_pump_cop < cop_good:
+                    # Average heat pump → moderate adjustment
+                    thermostat_adjustment *= 0.7
+
+                elif heat_pump_cop > cop_excellent:
+                    # Efficient heat pump → push more
+                    thermostat_adjustment *= 1.2
+
+            thermostat_adjustment = max(max_cool_push, min(max_heat_push, thermostat_adjustment))
+            logger.debug(
+                f"Temperature error: {temp_error:.2f} C, Proportional adjustment: {proportional_adjustment:.2f} C, Final thermostat adjustment after COP modulation: {thermostat_adjustment:.2f} C"
+            )
+            for zone_id in zones_with_hp_impact_state.keys():
+                control_actions[zone_id] = target_temp + thermostat_adjustment
 
         elif heat_pump_mode == utils.HeatPumpMode.COOL:
+            # Set heat pump setpoint with calibration offset
+            control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + heat_pump_calibration_offset)
+
             # Turn off auxiliary heating in cooling mode
             for zone_id in zones_with_hp_impact_state.keys():
                 control_actions[zone_id] = 5  # Use a lower setpoint to ensure to turn off heating
-
-            if inside_temp > target_temp:
-                control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "-1.0"
-                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp - 1)
-            else:
-                control_actions[HEAT_PUMP_ENTITY_ID]["ctrl_state"] = "-2.0"
-                control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp)
 
         else:
             for zone_id in zones_with_hp_impact_state.keys():
@@ -434,3 +487,46 @@ class HomeAssistantDeviceInterface:
 
         logger.error(f"Temperature data not found for sensor {environment_sensor_id}")
         return None
+
+    def _get_indoor_temperature_trend(self, environment_sensor_id: str) -> float | None:
+        """Calculates the indoor temperature trend based on historical data from TimescaleDB."""
+        query = text(f"""
+            SELECT time, value::double precision AS value
+            FROM space_heating
+            WHERE device_id = '{environment_sensor_id}'
+                AND name = 'temperature'
+                AND time > now() - interval '15 minutes'
+            ORDER BY time ASC
+            LIMIT 100;
+        """)
+        try:
+            with postgres_db_engine.connect() as conn:
+                result = conn.execute(query, {"device_id": environment_sensor_id})
+                data = result.fetchall()
+
+            if len(data) < 3:
+                logger.warning(
+                    f"Not enough data points to calculate temperature trend for sensor {environment_sensor_id}"
+                )
+                return None
+
+            # Clean and align data
+            clean_data = [(row[0], float(row[1])) for row in data if row[1] is not None]
+
+            if len(clean_data) < 3:
+                return None
+
+            # Calculate trend (simple linear regression)
+            times = np.array([(row[0] - clean_data[0][0]).total_seconds() / 60.0 for row in clean_data], dtype=float)
+            temperatures = np.array([row[1] for row in clean_data], dtype=float)
+
+            # Linear regression to find the slope (temperature change per minute)
+            A = np.vstack([times, np.ones(len(times))]).T
+            slope, _ = np.linalg.lstsq(A, temperatures, rcond=None)[0]
+
+            slope = float(np.clip(slope, -0.5, 0.5))
+            return round(slope, 4)  # Temperature change per minute
+
+        except Exception as e:
+            logger.error(f"Error calculating temperature trend for sensor {environment_sensor_id}: {e}")
+            return None
