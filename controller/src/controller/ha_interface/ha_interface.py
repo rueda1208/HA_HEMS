@@ -1,18 +1,16 @@
 import logging
 import math
 import os
-
+from datetime import datetime
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 import requests
-
 from sqlalchemy import create_engine, text
 
 from controller.utils import utils
 from controller.utils.peak_events import PeakEvent
-
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +40,10 @@ class HomeAssistantDeviceInterface:
     def __init__(self, base_url: str, token: str) -> None:
         self._url_base = base_url
         self._headers = {"Authorization": f"Bearer {token}", "content-type": "application/json"}
+
+        self._aux_last_on: datetime | None
+        self._aux_last_off: datetime | None
+        self._aux_active: bool
 
     def get_devices_states(self) -> Dict[str, Any]:
         """
@@ -263,106 +265,112 @@ class HomeAssistantDeviceInterface:
             "user_pref": target_temp,
         }
 
-        # Configurable parameters for control logic
-        max_heat_push = 1.5  # Maximum heating push (positive value) to avoid excessive heating, to be tuned based on system response and desired comfort levels
-        max_cool_push = -2.0  # Maximum cooling push (negative value) to avoid excessive cooling, to be tuned based on system response and desired comfort levels
+        # Parameters
+        temp_tolerance = 0.3
+        heat_pump_offset = 2.0
 
-        Kp = 0.35  # Proportional gain for temperature error adjustment, to be tuned based on system response and desired aggressiveness of control actions
+        min_aux_runtime = 10.0  # minutes ON once activated
+        min_aux_off_time = 10.0  # minutes OFF before reactivation
 
-        cop_low = 1.3  # Threshold below which the heat pump is considered inefficient and the control logic relies more on auxiliary heating
-        cop_good = 2.0  # Threshold above which the heat pump is considered efficient and the control logic relies more on the heat pump
-        cop_excellent = 3.0  # Threshold above which the heat pump is considered very efficient and the control logic pushes more on the heat pump
-
-        temp_tolerance = 0.3  # Degrees Celsius tolerance to avoid excessive on/off cycling
-        # TODO: Get this value from configuration or compute it based on data (automatic) instead of hardcoding it here.
-        # TODO: Use a value for cooling and others for heating instead of a single value for both modes ?
-        heat_pump_calibration_offset = 2.0  # Degrees Celsius offset to account for heat pump compensation
-
-        # Get indoor temperature trend to adjust control actions dynamically and avoid excessive on/off cycling of heat pump and auxiliary heating
-        temp_trend = self._get_indoor_temperature_trend(environment_sensor_id)
-
-        # Set heat pump setpoint and zone setpoints based on mode
         if heat_pump_mode == utils.HeatPumpMode.HEAT:
             # Set heat pump setpoint with calibration offset
-            control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + heat_pump_calibration_offset)
+            control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + heat_pump_offset)
 
-            # Calculate temperature error and trend to adjust thermostat setpoints dynamically
-            temp_error = target_temp - inside_temp  # + = frío
-            thermostat_adjustment = 0.0
+            # Use regression slope instead of raw trend
+            temp_slope = self._get_indoor_temperature_slope(environment_sensor_id)
 
-            # Proportional control adjustment based on temperature error
-            proportional_adjustment = Kp * temp_error
+            # Compute adaptive monitoring window based on current conditions
+            elapsed_time = self._time_since_last_heat_call()
 
-            # Thermostat adjustment logic
-            if inside_temp <= target_temp - temp_tolerance:
-                # Cool zone
-                if temp_trend is not None and temp_trend < 0:
-                    thermostat_adjustment = +1.2
-                elif temp_trend is not None and temp_trend > 0:
-                    thermostat_adjustment = +0.3
-                else:
-                    thermostat_adjustment = +0.6
-                logger.debug(
-                    f"Zone is cool, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
-                )
+            # Calculate temperature error for dynamic window adjustment
+            temp_error = target_temp - inside_temp
 
-            elif inside_temp >= target_temp + temp_tolerance:
-                # Hot zone
-                if temp_trend is not None and temp_trend > 0:
-                    thermostat_adjustment = -2.0
-                elif temp_trend is not None and temp_trend < 0:
-                    thermostat_adjustment = -0.5
-                else:
-                    thermostat_adjustment = -1.0
-                logger.debug(
-                    f"Zone is hot, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
-                )
+            # Compute dynamic window based on error and trend
+            dynamic_window = self._compute_dynamic_window(temp_error, temp_slope)
 
-            else:
-                # Neutral zone
-                if temp_trend is not None and temp_trend > 0:
-                    thermostat_adjustment = -0.5
-                elif temp_trend is not None and temp_trend < 0:
-                    thermostat_adjustment = +0.5
-                else:
-                    thermostat_adjustment = 0.0
-                logger.debug(
-                    f"Zone is neutral, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
-                )
+            # TODO: Check if necessary after dynamic window implementation
+            # # COP influence
+            # if heat_pump_cop is not None:
+            #     if heat_pump_cop < 1.5:
+            #         dynamic_window *= 0.5
+            #     elif heat_pump_cop > 3.0:
+            #         dynamic_window *= 1.5
 
-            # Add proportional adjustment and modulate by heat pump COP
-            thermostat_adjustment += proportional_adjustment
-            if thermostat_adjustment > 0 and heat_pump_cop is not None:
-                if heat_pump_cop < cop_low:
-                    # Inefficient heat pump → let the resistive do the work
-                    thermostat_adjustment *= 0.4
-
-                elif heat_pump_cop < cop_good:
-                    # Average heat pump → moderate adjustment
-                    thermostat_adjustment *= 0.7
-
-                elif heat_pump_cop > cop_excellent:
-                    # Efficient heat pump → push more
-                    thermostat_adjustment *= 1.2
-
-            thermostat_adjustment = max(max_cool_push, min(max_heat_push, thermostat_adjustment))
-            logger.debug(
-                f"Temperature error: {temp_error:.2f} C, Proportional adjustment: {proportional_adjustment:.2f} C, Final thermostat adjustment after COP modulation: {thermostat_adjustment:.2f} C"
+            # Core decision
+            should_enable = self._should_enable_aux(
+                temp_error=temp_error,
+                temp_slope=temp_slope,
+                elapsed_time=elapsed_time,
+                dynamic_window=dynamic_window,
+                tolerance=temp_tolerance,
             )
+
+            # Anti short cycling logic
+            now = datetime.utcnow()
+
+            if not hasattr(self, "_aux_active"):
+                self._aux_active = False
+                self._aux_last_on = None
+                self._aux_last_off = None
+
+            def can_enable():
+                # If we've never turned off auxiliary, we can enable it immediately
+                if self._aux_last_off is None:
+                    return True
+                elapsed = (now - self._aux_last_off).total_seconds() / 60.0
+                return elapsed >= min_aux_off_time
+
+            def can_disable():
+                # If we've never turned on auxiliary, we can disable it immediately
+                if self._aux_last_on is None:
+                    return True
+                elapsed = (now - self._aux_last_on).total_seconds() / 60.0
+                return elapsed >= min_aux_runtime
+
+            if should_enable and not self._aux_active:
+                # Check if we can enable auxiliary (anti short cycling)
+                if can_enable():
+                    self._aux_active = True
+                    self._aux_last_on = now
+            elif not should_enable and self._aux_active:
+                # Check if we can disable auxiliary (anti short cycling)
+                if can_disable():
+                    self._aux_active = False
+                    self._aux_last_off = now
+
+            logger.debug(
+                f"[HP CONTROL] inside={inside_temp:.2f}, target={target_temp:.2f}, "
+                f"error={temp_error:.2f}, slope={temp_slope}, elapsed={elapsed_time:.1f}, "
+                f"window={dynamic_window:.1f}, aux_active={self._aux_active}"
+            )
+
             for zone_id in zones_with_hp_impact_state.keys():
-                control_actions[zone_id] = target_temp + thermostat_adjustment
+                if not self._aux_active:
+                    # OFF by default
+                    control_actions[zone_id] = 5.0
+
+                else:
+                    control_actions[zone_id] = target_temp
+
+                    # TODO: Check if necessary to use boost
+                    # boost = min(1.5, 0.5 + temp_error * 0.3)
+
+                    # if temp_slope is not None and temp_slope < 0:
+                    #     boost += 0.5
+
+                    # control_actions[zone_id] = target_temp + boost
 
         elif heat_pump_mode == utils.HeatPumpMode.COOL:
             # Set heat pump setpoint with calibration offset
-            control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + heat_pump_calibration_offset)
+            control_actions[HEAT_PUMP_ENTITY_ID]["setpoint"] = math.ceil(target_temp + heat_pump_offset)
 
             # Turn off auxiliary heating in cooling mode
             for zone_id in zones_with_hp_impact_state.keys():
-                control_actions[zone_id] = 5  # Use a lower setpoint to ensure to turn off heating
+                control_actions[zone_id] = 5.0  # Use a lower setpoint to ensure to turn off heating
 
         else:
             for zone_id in zones_with_hp_impact_state.keys():
-                control_actions[zone_id] = 10  # Set low setpoint to turn off heating
+                control_actions[zone_id] = 5.0  # Set low setpoint to turn off heating
 
         return control_actions
 
@@ -491,6 +499,7 @@ class HomeAssistantDeviceInterface:
         logger.error(f"Temperature data not found for sensor {environment_sensor_id}")
         return None
 
+    # TODO: Delete if not used after slope implementation
     def _get_indoor_temperature_trend(self, environment_sensor_id: str) -> float | None:
         """Calculates the indoor temperature trend based on historical data from TimescaleDB."""
         query = text(f"""
@@ -533,3 +542,165 @@ class HomeAssistantDeviceInterface:
         except Exception as e:
             logger.error(f"Error calculating temperature trend for sensor {environment_sensor_id}: {e}")
             return None
+
+    def _compute_dynamic_window(self, temp_error: float, temp_trend: float | None) -> float:
+        """
+        Compute adaptive monitoring window (minutes).
+        """
+        base_window = 10.0  # minutes
+
+        if temp_trend is None:
+            return base_window
+
+        if temp_trend > 0:
+            # Temperature rising → be more patient
+            return min(30.0, base_window + temp_error * 5.0)
+
+        elif temp_trend < 0:
+            # Temperature dropping → react faster
+            return max(5.0, base_window - abs(temp_trend) * 20.0)
+
+        return base_window
+
+    def _should_enable_aux(
+        self,
+        temp_error: float,
+        temp_slope: float | None,
+        elapsed_time: float,
+        dynamic_window: float,
+        tolerance: float,
+    ) -> bool:
+
+        # If we're close enough to target, no need to enable auxiliary
+        if temp_error < tolerance:
+            return False
+
+        # If we don't have a clear trend, rely on error and elapsed time
+        if temp_slope is None:
+            return True
+
+        # Temperature dropping → immediate assist
+        if temp_slope < -0.01:
+            return True
+
+        # Not improving enough
+        if elapsed_time > dynamic_window and temp_slope < 0.01:
+            return True
+
+        return False
+
+    def _get_indoor_temperature_slope(self, environment_sensor_id: str, window_minutes: int = 20) -> float | None:
+        """
+        Compute indoor temperature trend using linear regression (°C per minute).
+        More robust than simple delta.
+        """
+        data = self._get_temperature_history(environment_sensor_id, window_minutes)
+
+        if not data or len(data) < 5:
+            return None
+
+        # data = [(timestamp, value), ...]
+        times = np.array([(t - data[0][0]).total_seconds() / 60.0 for t, _ in data])
+        temps = np.array([v for _, v in data])
+
+        try:
+            slope, _ = np.polyfit(times, temps, 1)  # slope in °C/min
+            return float(slope)
+        except Exception:
+            return None
+
+    def _can_disable_aux(self, min_runtime: float) -> bool:
+        """
+        Prevent turning OFF auxiliary too quickly.
+        """
+        if self._aux_last_on is None:
+            return True
+
+        elapsed = (self._now() - self._aux_last_on).total_seconds() / 60.0
+        return elapsed >= min_runtime
+
+    def _can_enable_aux(self, min_off_time: float) -> bool:
+        """
+        Prevent rapid ON cycling.
+        """
+        if self._aux_last_off is None:
+            return True
+
+        elapsed = (self._now() - self._aux_last_off).total_seconds() / 60.0
+        return elapsed >= min_off_time
+
+    def _time_since_last_heat_call(self) -> float:
+        """
+        Returns minutes since *effective heating started* (not just call).
+
+        This avoids penalizing system startup lag and thermal inertia.
+        """
+
+        now = datetime.utcnow()
+
+        # Init state
+        if not hasattr(self, "_heat_state"):
+            self._heat_state = "IDLE"
+            self._heat_call_start = None
+            self._heat_effective_start = None
+
+        # Inputs
+        environment_sensor_id = str(os.getenv("ENVIRONMENT_SENSOR_ID"))
+
+        inside_temp = self._get_indoor_temperature(environment_sensor_id, self._last_devices_states)
+
+        target_temp = np.mean([float(state["target_temperature"]) for state in self._last_zones_state.values()])
+
+        temp_error = target_temp - inside_temp
+
+        # Use your regression slope
+        temp_slope = self._get_indoor_temperature_slope(environment_sensor_id)
+
+        heat_call = self._last_heat_pump_mode == utils.HeatPumpMode.HEAT and temp_error > 0.2
+
+        # =========================
+        # State machine
+        # =========================
+
+        if not heat_call:
+            # Reset everything
+            self._heat_state = "IDLE"
+            self._heat_call_start = None
+            self._heat_effective_start = None
+            return 0.0
+
+        # Step 1: heat requested
+        if self._heat_state == "IDLE":
+            self._heat_state = "CALLING"
+            self._heat_call_start = now
+            return 0.0
+
+        # Step 2: waiting for response
+        if self._heat_state == "CALLING":
+            if temp_slope is not None and temp_slope > 0.01:
+                # Temperature is actually rising → start counting
+                self._heat_state = "RAMPING"
+                self._heat_effective_start = now
+            return 0.0
+
+        # Step 3: ramping → confirm stable heating
+        if self._heat_state == "RAMPING":
+            if temp_slope is not None and temp_slope > 0.02:
+                self._heat_state = "HEATING_EFFECTIVE"
+
+            elif temp_slope is not None and temp_slope < 0:
+                # Failed to ramp → fallback
+                self._heat_state = "CALLING"
+                self._heat_effective_start = None
+
+            return 0.0
+
+        # Step 4: effective heating → count time
+        if self._heat_state == "HEATING_EFFECTIVE":
+            if self._heat_effective_start is None:
+                return 0.0
+
+            elapsed = (now - self._heat_effective_start).total_seconds() / 60.0
+            return elapsed
+
+        return 0.0
