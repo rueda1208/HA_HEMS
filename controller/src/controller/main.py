@@ -5,16 +5,11 @@ import time
 import requests
 import schedule
 
+from sqlalchemy import create_engine
+
+from controller.controller import Controller
 from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 from controller.utils import utils
-
-
-# Enlever controle automatise (bouton) on le met global (nouveau concept de parametre global)
-# mode operation mettre global (periode de chauffe, periode de clim, off)
-# compensation - lie a la thermopompe (pas a la zone)
-
-# backend: voir si la thermopompe est geree automatiquement lorsque non en zone (horaire, setpoint)
-# voir pour le mode global, on ne chauffe pas
 
 
 def main() -> None:
@@ -31,16 +26,27 @@ def main() -> None:
     # Retrieve the list of devices from Home Assistant.
     ha_interface = HomeAssistantDeviceInterface(base_url, token)
 
+    # Get TimescaleDB connection parameters
+    postgres_db_name = os.getenv("POSTGRES_NAME", "homeassistant")
+    postgres_db_user = os.getenv("POSTGRES_USER", "postgres")
+    postgres_db_host = os.getenv("POSTGRES_HOST", "77b2833f-timescaledb")
+    postgres_db_port = os.getenv("POSTGRES_PORT", "5432")
+    postgres_db_password = os.getenv("POSTGRES_PASSWORD", "homeassistant")
+
+    # Create database connection URL
+    db_url = f"postgresql://{postgres_db_user}:{postgres_db_password}@{postgres_db_host}:{postgres_db_port}/{postgres_db_name}"
+
+    # Create SQLAlchemy engine
+    postgres_db_engine = create_engine(db_url)
+
+    controller = Controller(postgres_db_engine)
+
     # Main control loop
     def _main_loop():
         # Get the state of all the devices in Home Assistant
         devices_states = ha_interface.get_devices_states()
 
-        # Create heat pump COP model from config data
-        heat_pump_cop_models = utils.create_cop_model(hems_api_base_url)
-
-        control_actions = ha_interface.get_control_actions(devices_states, heat_pump_cop_models)
-
+        control_actions = controller.get_control_actions(devices_states)
         ha_interface.execute_control_actions(control_actions, devices_states)
 
         metric = {
