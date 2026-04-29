@@ -1,7 +1,7 @@
 name: "Telegraf"
 slug: "telegraf"
 description: "Telegraf add-on with modular configuration"
-version: "1.0.4"
+version: "1.0.5"
 arch:
   - aarch64
   - amd64

@@ -1,5 +1,4 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+FROM ghcr.io/home-assistant/base:3.23-2026.04.0
 
 RUN apk update && apk add --no-cache telegraf postgresql-client
 
