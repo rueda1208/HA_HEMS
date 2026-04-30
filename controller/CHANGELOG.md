@@ -1,3 +1,7 @@
+## 1.1.14
+- Pinned base Docker image version
+- Extracted controller logic in a single file per device type
+
 ## 1.1.13
 - Refactored heat pump control logic
 
