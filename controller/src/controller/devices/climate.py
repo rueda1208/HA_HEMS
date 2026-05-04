@@ -120,7 +120,7 @@ class ClimateController:
         # Set heat pump setpoint and zone setpoints based on mode
         if control_mode == utils.ControlMode.HEATING:
             # Set heat pump setpoint with calibration offset
-            control_actions[heat_pump_device_id]["state"] = control_mode.value
+            control_actions[heat_pump_device_id]["state"] = "heat"
             control_actions[heat_pump_device_id]["setpoint"] = math.ceil(
                 target_temperature + heat_pump_calibration_offset
             )
@@ -195,7 +195,7 @@ class ClimateController:
 
         else:  # control_mode == utils.ControlMode.COOLING:
             # Set heat pump setpoint with calibration offset
-            control_actions[heat_pump_device_id]["state"] = control_mode.value
+            control_actions[heat_pump_device_id]["state"] = "cool"
             control_actions[heat_pump_device_id]["setpoint"] = math.ceil(
                 target_temperature + heat_pump_calibration_offset
             )
@@ -235,7 +235,7 @@ class ClimateController:
         current_temperature = devices_states.get(device_id, {}).get("attributes", {}).get("current_temperature")
 
         control_actions[device_id] = {
-            "state": "heating" if control_mode == utils.ControlMode.HEATING else "cooling",
+            "state": "heat" if control_mode == utils.ControlMode.HEATING else "cool",
             "setpoint": target_temperature,
             "user_pref": target_temperature,
         }

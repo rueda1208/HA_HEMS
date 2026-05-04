@@ -1,3 +1,6 @@
+## 1.1.16
+- Fixed heat pump control mode
+
 ## 1.1.15
 - Fixed typo in heat pump control logic
 
