@@ -1,3 +1,6 @@
+## 1.1.17
+- Fixed bug in controller logic to retrieve the right device configuration
+
 ## 1.1.16
 - Fixed heat pump control mode
 

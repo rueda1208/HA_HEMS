@@ -367,7 +367,11 @@ class ClimateController:
         return True
 
     def _get_target_temperature(
-        self, device_id: str, configuration: Dict[str, Any], devices_states: Dict[str, Any], gdp_event: PeakEvent | None
+        self,
+        device_id: str,
+        device_configuration: Dict[str, Any],
+        devices_states: Dict[str, Any],
+        gdp_event: PeakEvent | None,
     ) -> float:
 
         # Determine day type and current hour
@@ -378,7 +382,7 @@ class ClimateController:
 
         # Get initial target temperature from schedule or manual override
         init_target_temperature, manual_override = self._get_target_from_schedule(
-            current_hour, day_of_week, devices_states, configuration, device_id
+            current_hour, day_of_week, devices_states, device_configuration, device_id
         )
 
         if manual_override:
@@ -394,7 +398,7 @@ class ClimateController:
 
         # Get target temperature from schedule and apply flexibility
         target_temperature = self._get_target_from_gdp_event(
-            init_target_temperature, now, day_of_week, devices_states, configuration, device_id, gdp_event
+            init_target_temperature, now, day_of_week, devices_states, device_configuration, device_id, gdp_event
         )
 
         logger.debug(f"{device_id}: target temperature = {target_temperature} °C")
@@ -406,7 +410,7 @@ class ClimateController:
         now: datetime,
         day_of_week: int,
         devices_states: Dict[str, Any],
-        configuration: Dict[str, Any],
+        device_configuration: Dict[str, Any],
         device_id: str,
         gdp_event: PeakEvent,
     ) -> float:
@@ -426,10 +430,9 @@ class ClimateController:
         }
 
         # Apply flexibility adjustment if current hour is within GDP event hours
-        zone_settings = configuration.get(device_id, {})
-        flexibility_upward = float(zone_settings.get("flexibility_upward", {}).get("value", 0.0))
-        flexibility_downward = float(zone_settings.get("flexibility_downward", {}).get("value", 0.0))
-        zone_preconditioning = zone_settings.get("preconditioning", {}).get("value", "false").lower() == "true"
+        flexibility_upward = float(device_configuration.get("flexibility_upward", {}).get("value", 0.0))
+        flexibility_downward = float(device_configuration.get("flexibility_downward", {}).get("value", 0.0))
+        zone_preconditioning = device_configuration.get("preconditioning", {}).get("value", "false").lower() == "true"
 
         if now >= gdp_timestamp_dict["start"] and now < gdp_timestamp_dict["end"]:
             # Negative for lowering temp during event
@@ -445,14 +448,20 @@ class ClimateController:
             stop_gdp_hour = (gdp_timestamp_dict["end"]).hour
 
             max_target_temperature_at_gdp_event, _ = (
-                self._get_target_from_schedule(start_gdp_hour, day_of_week, devices_states, configuration, device_id)
+                self._get_target_from_schedule(
+                    start_gdp_hour, day_of_week, devices_states, device_configuration, device_id
+                )
                 or 0.0
             )
 
             for hour in range(start_gdp_hour, stop_gdp_hour):
                 max_target_temperature_at_gdp_event = max(
                     max_target_temperature_at_gdp_event,
-                    (self._get_target_from_schedule(hour, day_of_week, devices_states, configuration, device_id)[0])
+                    (
+                        self._get_target_from_schedule(
+                            hour, day_of_week, devices_states, device_configuration, device_id
+                        )[0]
+                    )
                     or 0.0,
                 )
 
@@ -464,7 +473,7 @@ class ClimateController:
                 elapsed_time=int((now - preconditioning_timestamp_dict["start"]).total_seconds()),
                 initial_value=(
                     self._get_target_from_schedule(
-                        start_preconditioning_hour, day_of_week, devices_states, configuration, device_id
+                        start_preconditioning_hour, day_of_week, devices_states, device_configuration, device_id
                     )[0]
                 )
                 or 0.0,
@@ -474,7 +483,7 @@ class ClimateController:
             stop_post_event_hour = (post_event_recovery_timestamp_dict["end"]).hour
 
             max_target_temperature_post_event_recovery, _ = self._get_target_from_schedule(
-                stop_post_event_hour, day_of_week, devices_states, configuration, device_id
+                stop_post_event_hour, day_of_week, devices_states, device_configuration, device_id
             )
 
             init_zone_temperature_after_gdp_event = (
@@ -482,7 +491,7 @@ class ClimateController:
                     (post_event_recovery_timestamp_dict["start"]).hour - 1,  # One hour before recovery
                     day_of_week,
                     devices_states,
-                    configuration,
+                    device_configuration,
                     device_id,
                 )[0]
                 or 0.0
@@ -513,7 +522,7 @@ class ClimateController:
         current_hour: int,
         day_of_week: int,
         devices_states: Dict[str, Any],
-        configuration: Dict[str, Any],
+        device_configuration: Dict[str, Any],
         device_id: str,
     ) -> Tuple[float, bool]:
         """
@@ -531,8 +540,7 @@ class ClimateController:
         La recherche se fait en reculant dans le temps (même jour puis jours précédents,
         en bouclant sur la semaine) jusqu'à trouver la dernière entrée applicable.
         """
-        device_settings = configuration.get(device_id, {})
-        schedule = device_settings.get("schedule", {})
+        schedule = device_configuration.get("schedule", {})
 
         if "setpoint" not in schedule:
             logger.warning(
@@ -590,7 +598,7 @@ class ClimateController:
 
                     # Check for manual override after this schedule entry
                     manual_override_temperature = self._get_manual_override_temperature(
-                        schedule_entry_timestamp, devices_states, configuration, device_id
+                        schedule_entry_timestamp, devices_states, device_configuration, device_id
                     )
 
                     if manual_override_temperature is not None:
@@ -614,7 +622,7 @@ class ClimateController:
 
                     # Check for manual override newer than this schedule entry
                     manual_override_temperature = self._get_manual_override_temperature(
-                        schedule_entry_timestamp, devices_states, configuration, device_id
+                        schedule_entry_timestamp, devices_states, device_configuration, device_id
                     )
 
                     if manual_override_temperature is not None:
@@ -624,7 +632,7 @@ class ClimateController:
 
         # Aucune consigne trouvée sur la semaine ou aucune cédule trouvée pour ce device
         # Retourner le setpoint par default des parametres (qui pourrait être un default, override manuel)
-        default_temperature = device_settings.get("setpoint", {}).get("value")
+        default_temperature = device_configuration.get("setpoint", {}).get("value")
         if default_temperature is None:
             logger.error(
                 "No target temperature found in schedule for device %s and no default value set, returning 21C as fallback",
@@ -638,11 +646,11 @@ class ClimateController:
         self,
         schedule_entry_timestamp: float,
         devices_states: Dict[str, Any],
-        configuration: Dict[str, Any],
+        device_configuration: Dict[str, Any],
         device_id: str,
     ) -> float | None:
         # Check if there is a manual override entry in the configuration for the device_id (from IHD)
-        setpoint_configuration = configuration.get(device_id, {}).get("setpoint", {})
+        setpoint_configuration = device_configuration.get("setpoint", {})
 
         if setpoint_configuration.get("source", {}) == "parameter":
             timestamp_value = setpoint_configuration.get("timestamp", 0)
