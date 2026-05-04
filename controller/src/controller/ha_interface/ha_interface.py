@@ -71,13 +71,13 @@ class HomeAssistantDeviceInterface:
             # TODO: we should check the device type instead
             if entity_id == HEAT_PUMP_ENTITY_ID:
                 # Set heat pump mode
-                if action["state"].value == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("state"):
+                if action["state"] == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("state"):
                     logger.info(f"No change to heat pump state requested (remains {action['state']})")
                 else:
                     logger.info(f"Setting heat pump state to {action['state']}")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
                     params = {
-                        "action": {"entity_id": HEAT_PUMP_ENTITY_ID, "hvac_mode": action["state"].value},
+                        "action": {"entity_id": HEAT_PUMP_ENTITY_ID, "hvac_mode": action["state"]},
                     }
 
                     self._send_action(credentials, params)

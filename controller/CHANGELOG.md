@@ -1,3 +1,6 @@
+## 1.1.15
+- Fixed typo in heat pump control logic
+
 ## 1.1.14
 - Pinned base Docker image version
 - Extracted controller logic in a single file per device type
