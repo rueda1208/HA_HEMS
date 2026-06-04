@@ -1,20 +1,30 @@
+## 1.1.18
+
+- Enhanced logging format
+
 ## 1.1.17
+
 - Fixed bug in controller logic to retrieve the right device configuration
 
 ## 1.1.16
+
 - Fixed heat pump control mode
 
 ## 1.1.15
+
 - Fixed typo in heat pump control logic
 
 ## 1.1.14
+
 - Pinned base Docker image version
 - Extracted controller logic in a single file per device type
 
 ## 1.1.13
+
 - Refactored heat pump control logic
 
 ## 1.1.12
+
 - Now getting heatpump specifications from backend
 
 ## 1.1.11

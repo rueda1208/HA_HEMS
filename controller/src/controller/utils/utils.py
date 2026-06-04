@@ -40,13 +40,16 @@ def setup_logging(filename: str):
     formatter = logging.Formatter("%(asctime)s [%(levelname)5s] %(message)s (%(filename)s:%(lineno)s)")
     file_handler.setFormatter(formatter)
 
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+
     # Configure the root logger
     logger_level = os.getenv("LOGLEVEL", "DEBUG").upper()
     logging.basicConfig(
         level=logger_level,
         handlers=[
             file_handler,  # Log to file with rotation
-            logging.StreamHandler(),  # Optionally log to console
+            stream_handler,  # Log to console
         ],
     )
 
