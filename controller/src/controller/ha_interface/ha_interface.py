@@ -547,20 +547,28 @@ class HomeAssistantDeviceInterface:
         """
         Compute adaptive monitoring window (minutes).
         """
-        base_window = 10.0  # minutes
+        base_window_minutes = 10.0
+        max_window_minutes = 30.0
+        min_window_minutes = 5.0
+        rising_trend_error_gain = 5.0
+        falling_trend_response_gain = 20.0
+
+        # The base window is the normal time allowed for the heat pump to respond.
+        # The maximum and minimum values keep the controller within practical limits.
+        # The gains define how strongly temperature error and falling trends adjust the window.
 
         if temp_trend is None:
-            return base_window
+            return base_window_minutes
 
         if temp_trend > 0:
             # Temperature rising → be more patient
-            return min(30.0, base_window + temp_error * 5.0)
+            return min(max_window_minutes, base_window_minutes + temp_error * rising_trend_error_gain)
 
         elif temp_trend < 0:
             # Temperature dropping → react faster
-            return max(5.0, base_window - abs(temp_trend) * 20.0)
+            return max(min_window_minutes, base_window_minutes - abs(temp_trend) * falling_trend_response_gain)
 
-        return base_window
+        return base_window_minutes
 
     def _should_enable_aux(
         self,
