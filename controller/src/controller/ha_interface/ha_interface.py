@@ -37,6 +37,9 @@ class HomeAssistantDeviceInterface:
     _url_base: str
     _headers: Dict[str, str]
 
+    def _get_temperature(self, device_state: Dict[str, Any]) -> Any:
+        return device_state.get("attributes", {}).get("temperature", device_state.get("temperature"))
+
     def __init__(self, base_url: str, token: str) -> None:
         self._url_base = base_url
         self._headers = {"Authorization": f"Bearer {token}", "content-type": "application/json"}
@@ -52,8 +55,9 @@ class HomeAssistantDeviceInterface:
         devices_states: Dict[str, Any] = {}
 
         for state in response_json:
-            entity_id = state.pop("entity_id")
-            devices_states[entity_id] = state
+            state_data = dict(state)
+            entity_id = state_data.pop("entity_id")
+            devices_states[entity_id] = state_data
 
         return devices_states
 
@@ -87,7 +91,7 @@ class HomeAssistantDeviceInterface:
                     logger.info("Heat pump turned off, skipping setpoint adjustment")
                 else:
                     setpoint = action["setpoint"]
-                    if setpoint == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("temperature"):
+                    if setpoint == self._get_temperature(devices_states.get(HEAT_PUMP_ENTITY_ID, {})):
                         logger.info(f"No change to heat pump setpoint requested (remains {setpoint} C)")
                     else:
                         logger.info(f"Setting heat pump setpoint to {setpoint} C")
@@ -109,7 +113,7 @@ class HomeAssistantDeviceInterface:
                 )
             else:
                 # Set zone temperature setpoint
-                if action == devices_states.get(entity_id, {}).get("temperature"):
+                if action == self._get_temperature(devices_states.get(entity_id, {})):
                     logger.info(f"No change to zone {entity_id} temperature requested (remains {action} C)")
                 else:
                     logger.info(f"Setting zone {entity_id} temperature to {action} C")

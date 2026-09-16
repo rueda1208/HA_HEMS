@@ -8,6 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 requests = "^2.32.5"
+websocket-client = "^1.8.0"
 numpy = "^2.3.3"
 pyyaml = "^6.0.2"
 schedule = "^1.2.2"
@@ -26,4 +27,10 @@ dev = [
     "types-requests (>=2.32.4.20260107,<3.0.0.0)",
     "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
     "pandas-stubs (>=2.3.3.260113,<3.0.0.0)",
+    "pytest (>=8.3.0,<9.0.0)",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
