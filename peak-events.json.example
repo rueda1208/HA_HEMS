@@ -1,0 +1,18 @@
+[
+  {
+    "offre": "CPC-D",
+    "datedebut": "2026-02-01T06:00:00-05:00",
+    "datefin": "2026-02-01T10:00:00-05:00",
+    "plagehoraire": "AM",
+    "duree": "PT04H00MS",
+    "secteurclient": "Residentiel"
+  },
+  {
+    "offre": "CPC-D",
+    "datedebut": "2026-01-26T16:00:00-05:00",
+    "datefin": "2026-01-26T20:00:00-05:00",
+    "plagehoraire": "PM",
+    "duree": "PT04H00MS",
+    "secteurclient": "Residentiel"
+  }
+]

@@ -5,9 +5,10 @@
             "name": "Controller",
             "type": "debugpy",
             "request": "launch",
-            "python": "${workspaceFolder}/controller/.venv/bin/python",
+            "python": "${command:python.interpreterPath}",
             "module": "controller.main",
             "cwd": "${workspaceFolder}/controller",
+            "envFile": "${workspaceFolder}/.env",
         },
     ]
 }

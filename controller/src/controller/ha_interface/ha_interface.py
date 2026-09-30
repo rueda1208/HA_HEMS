@@ -1,16 +1,13 @@
 import logging
 import os
-
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 import requests
-
 from sqlalchemy import create_engine
 
 from controller.utils import utils
-
 
 logger = logging.getLogger(__name__)
 

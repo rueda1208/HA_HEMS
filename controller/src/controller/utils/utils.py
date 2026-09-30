@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-
 from enum import StrEnum
 from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict
@@ -12,9 +11,7 @@ import requests
 from controller.utils.configuration import ConfigurationClient, MockConfigurationClient, RestConfigurationClient
 from controller.utils.peak_events import BasePeakEventClient, MockPeakEventClient, PeakEvent, PeakEventClient
 
-
 logger = logging.getLogger(__name__)
-CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH")
 LOGS_DIR = os.getenv("LOGS_DIR", "/share/controller/logs")
 
 
