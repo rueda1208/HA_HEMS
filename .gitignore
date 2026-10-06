@@ -206,3 +206,5 @@ __marimo__/
 secrets/
 logs/
 peak-events.json
+legacy/
+tech_docs/
