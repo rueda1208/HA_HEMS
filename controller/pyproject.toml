@@ -21,9 +21,10 @@ dataclasses-json = "^0.6.7"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[dependency-groups]
-dev = [
-    "types-requests (>=2.32.4.20260107,<3.0.0.0)",
-    "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
-    "pandas-stubs (>=2.3.3.260113,<3.0.0.0)",
-]
+[tool.poetry.group.dev.dependencies]
+types-requests = ">=2.32.4.20260107,<3.0.0.0"
+types-pyyaml = ">=6.0.12.20250915,<7.0.0.0"
+pandas-stubs = ">=2.3.3.260113,<3.0.0.0"
+ipykernel = "^7.4.0"
+matplotlib = "^3.11.2"
+

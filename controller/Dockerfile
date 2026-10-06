@@ -6,7 +6,8 @@ RUN apk update && apk add python3 poetry
 # Copy the application files
 COPY . .
 
-# Install the dependencies and create a virtual environment
-RUN chmod a+x /run.sh && poetry install
+# Install the dependencies and create a virtual environment (prod only, excludes the "dev" group:
+# type stubs, ipykernel, matplotlib - only needed locally for linting/notebooks, not at runtime)
+RUN chmod a+x /run.sh && poetry install --only main
 
 CMD [ "/run.sh" ]

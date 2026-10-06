@@ -23,6 +23,17 @@ class ClimateController:
     def __init__(self, db_engine: Engine) -> None:
         self._db_engine = db_engine
 
+        # Per-zone state for the resistive (auxiliary) backup heating, persisted across control cycles since this
+        # controller instance lives for the whole process lifetime (see main.py's scheduled loop).
+        self._aux_active: Dict[str, bool] = {}
+        self._aux_last_on: Dict[str, datetime] = {}
+        self._aux_last_off: Dict[str, datetime] = {}
+        self._heat_demand_start: Dict[str, datetime] = {}
+
+        # Per-zone state for the heat pump setpoint hysteresis (see _get_stable_heat_pump_setpoint), to avoid
+        # sending a new setpoint to the heat pump on every control cycle just because of sensor noise.
+        self._heat_pump_setpoint: Dict[str, int] = {}
+
     def get_control_actions(
         self,
         device_id: str,
@@ -76,15 +87,7 @@ class ClimateController:
 
             return control_actions
 
-        # Calculate heat pump COP based on current outside temperature
-        weather_entity_id = os.getenv("WEATHER_ENTITY_ID", "weather.home")
-        outside_temperature = devices_states.get(weather_entity_id, {}).get("attributes", {}).get("temperature")
-        if outside_temperature is None:
-            raise ValueError("Outside temperature is None, cannot compute heat pump COP.")
-
         target_temperature = self._get_target_temperature(zone_id, zone_configuration, devices_states, peak_event)
-
-        heat_pump_cop = utils.get_heat_pump_cop(control_mode, outside_temperature)
 
         environment_sensor_id = str(os.getenv("ENVIRONMENT_SENSOR_ID"))
         indoor_temperature = self._get_indoor_temperature(environment_sensor_id, devices_states)
@@ -100,107 +103,49 @@ class ClimateController:
         }
 
         # Configurable parameters for control logic
-        max_heat_push = 1.5  # Maximum heating push (positive value) to avoid excessive heating, to be tuned based on system response and desired comfort levels
-        max_cool_push = -2.0  # Maximum cooling push (negative value) to avoid excessive cooling, to be tuned based on system response and desired comfort levels
-
-        kp = 0.35  # Proportional gain for temperature error adjustment, to be tuned based on system response and desired aggressiveness of control actions
-
-        cop_low = 1.3  # Threshold below which the heat pump is considered inefficient and the control logic relies more on auxiliary heating
-        cop_good = 2.0  # Threshold above which the heat pump is considered efficient and the control logic relies more on the heat pump
-        cop_excellent = 3.0  # Threshold above which the heat pump is considered very efficient and the control logic pushes more on the heat pump
-
         temp_tolerance = 0.3  # Degrees Celsius tolerance to avoid excessive on/off cycling
         # TODO: Get this value from configuration or compute it based on data (automatic) instead of hardcoding it here.
         # TODO: Use a value for cooling and others for heating instead of a single value for both modes ?
-        heat_pump_calibration_offset = 2.0  # Degrees Celsius offset to account for heat pump compensation
+        # Maximum degrees Celsius pushed on top of target so the heat pump modulates towards its maximum output
+        # while it is still catching up. This offset is tapered down as the room approaches the target (see
+        # _get_heat_pump_heating_offset) so the heat pump settles back near the real target instead of chasing
+        # target + offset forever, which would otherwise cause a permanent overshoot/discomfort once the heat pump
+        # is actually capable of reaching it (e.g. in mild weather).
+        heat_pump_calibration_offset = 2.0
 
-        # Get indoor temperature trend to adjust control actions dynamically and avoid excessive on/off cycling of heat pump and auxiliary heating
+        # Get indoor temperature trend to detect whether the heat pump alone is actually catching up
         temp_trend = self._get_indoor_temperature_trend(environment_sensor_id)
 
         # Set heat pump setpoint and zone setpoints based on mode
         if control_mode == utils.ControlMode.HEATING:
-            # Set heat pump setpoint with calibration offset
+            # Push the heat pump above target so it modulates at its maximum capacity, but only as much as the
+            # current heating deficit warrants, to avoid overheating once the room is at (or near) the target.
+            heat_pump_offset = self._get_heat_pump_heating_offset(
+                target_temperature, indoor_temperature, heat_pump_calibration_offset
+            )
             control_actions[heat_pump_device_id]["state"] = "heat"
-            control_actions[heat_pump_device_id]["setpoint"] = math.ceil(
-                target_temperature + heat_pump_calibration_offset
+            control_actions[heat_pump_device_id]["setpoint"] = self._get_stable_heat_pump_setpoint(
+                zone_id, target_temperature + heat_pump_offset
             )
 
-            # Calculate temperature error and trend to adjust thermostat setpoints dynamically
-            temp_error = target_temperature - indoor_temperature  # + = frío
-            thermostat_adjustment = 0.0
-
-            # Proportional control adjustment based on temperature error
-            proportional_adjustment = kp * temp_error
-
-            # Thermostat adjustment logic
-            if indoor_temperature <= target_temperature - temp_tolerance:
-                # Cool zone
-                if temp_trend is not None and temp_trend < 0:
-                    thermostat_adjustment = +1.2
-                elif temp_trend is not None and temp_trend > 0:
-                    thermostat_adjustment = +0.3
-                else:
-                    thermostat_adjustment = +0.6
-                logger.debug(
-                    f"Zone is cool, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
-                )
-
-            elif indoor_temperature >= target_temperature + temp_tolerance:
-                # Hot zone
-                if temp_trend is not None and temp_trend > 0:
-                    thermostat_adjustment = -2.0
-                elif temp_trend is not None and temp_trend < 0:
-                    thermostat_adjustment = -0.5
-                else:
-                    thermostat_adjustment = -1.0
-                logger.debug(
-                    f"Zone is hot, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
-                )
-
-            else:
-                # Neutral zone
-                if temp_trend is not None and temp_trend > 0:
-                    thermostat_adjustment = -0.5
-                elif temp_trend is not None and temp_trend < 0:
-                    thermostat_adjustment = +0.5
-                else:
-                    thermostat_adjustment = 0.0
-                logger.debug(
-                    f"Zone is neutral, temp trend: {temp_trend}, initial thermostat adjustment: {thermostat_adjustment:.2f} C"
-                )
-
-            # Add proportional adjustment and modulate by heat pump COP
-            thermostat_adjustment += proportional_adjustment
-            if thermostat_adjustment > 0 and heat_pump_cop is not None:
-                if heat_pump_cop < cop_low:
-                    # Inefficient heat pump → let the resistive do the work
-                    thermostat_adjustment *= 0.4
-
-                elif heat_pump_cop < cop_good:
-                    # Average heat pump → moderate adjustment
-                    thermostat_adjustment *= 0.7
-
-                elif heat_pump_cop > cop_excellent:
-                    # Efficient heat pump → push more
-                    thermostat_adjustment *= 1.2
-
-            thermostat_adjustment = max(max_cool_push, min(max_heat_push, thermostat_adjustment))
-            logger.debug(
-                f"Temperature error: {temp_error:.2f} C, Proportional adjustment: {proportional_adjustment:.2f} C, Final thermostat adjustment after COP modulation: {thermostat_adjustment:.2f} C"
+            # The resistive backup only turns on when the heat pump alone hasn't been able to keep up with comfort
+            aux_active = self._update_aux_backup_state(
+                zone_id, target_temperature, indoor_temperature, temp_trend, temp_tolerance
             )
 
             for device_id in zone_devices.keys():
                 if device_id != heat_pump_device_id:
-                    control_actions[device_id] = target_temperature + thermostat_adjustment
+                    control_actions[device_id] = target_temperature if aux_active else 5  # 5 => effectively off
 
         else:  # control_mode == utils.ControlMode.COOLING:
             # Set heat pump setpoint with calibration offset
             control_actions[heat_pump_device_id]["state"] = "cool"
-            control_actions[heat_pump_device_id]["setpoint"] = math.ceil(
-                target_temperature + heat_pump_calibration_offset
+            control_actions[heat_pump_device_id]["setpoint"] = self._get_stable_heat_pump_setpoint(
+                zone_id, target_temperature + heat_pump_calibration_offset
             )
 
-            # Turn off auxiliary heating in cooling mode
+            # Resistive heating has no role in cooling mode: force it off and clear any pending backup state
+            self._clear_aux_backup_state(zone_id)
             for device_id in zone_devices.keys():
                 if device_id != heat_pump_device_id:
                     control_actions[device_id] = 5  # Use a lower setpoint to ensure to turn off heating
@@ -213,6 +158,144 @@ class ClimateController:
                 return device_id
         logger.error(f"No heat pump device linked to zone found among devices: {zone_devices.keys()}")
         raise ValueError("No heat pump device linked to zone found")
+
+    def _update_aux_backup_state(
+        self,
+        zone_id: str,
+        target_temperature: float,
+        indoor_temperature: float | None,
+        temp_trend: float | None,
+        temp_tolerance: float,
+    ) -> bool:
+        """
+        Decides whether the resistive (auxiliary) backup heating should be active for the zone.
+
+        The heat pump is always the primary heat source and is pushed towards its maximum output via the
+        calibration offset applied in the caller. The resistive backup is only activated when, after an adaptive
+        grace period, the heat pump alone hasn't been able to close the gap with the target temperature. The grace
+        period shrinks as the temperature gap grows, so a large deviation triggers the backup much faster than a
+        small one, and an actively dropping indoor temperature triggers it immediately.
+        """
+        # Anti short-cycling: minimum time the backup must stay on/off once it changes state, to be tuned
+        min_runtime_minutes = 15.0
+        min_off_time_minutes = 15.0
+
+        now = datetime.now().astimezone()
+
+        if indoor_temperature is None:
+            logger.warning(f"Zone {zone_id}: indoor temperature unknown, keeping auxiliary backup state unchanged")
+            return self._aux_active.get(zone_id, False)
+
+        temp_error = target_temperature - indoor_temperature  # positive => room is colder than target
+
+        if temp_error <= temp_tolerance:
+            # Comfort is met (or the zone is too warm): no heat demand, reset the grace period timer
+            self._heat_demand_start.pop(zone_id, None)
+            should_activate = False
+        else:
+            demand_start = self._heat_demand_start.setdefault(zone_id, now)
+            elapsed_minutes = (now - demand_start).total_seconds() / 60.0
+            activation_window_minutes = self._compute_aux_activation_window(temp_error, temp_tolerance)
+
+            # React immediately if the room is actively losing heat despite the heat pump running
+            temp_actively_dropping = temp_trend is not None and temp_trend < -0.01
+
+            should_activate = temp_actively_dropping or elapsed_minutes >= activation_window_minutes
+
+            logger.debug(
+                f"Zone {zone_id}: temp error={temp_error:.2f} C, trend={temp_trend}, elapsed={elapsed_minutes:.1f} "
+                f"min, activation window={activation_window_minutes:.1f} min, should_activate={should_activate}"
+            )
+
+        aux_active = self._aux_active.get(zone_id, False)
+        last_on = self._aux_last_on.get(zone_id)
+        last_off = self._aux_last_off.get(zone_id)
+
+        can_enable = last_off is None or (now - last_off).total_seconds() / 60.0 >= min_off_time_minutes
+        can_disable = last_on is None or (now - last_on).total_seconds() / 60.0 >= min_runtime_minutes
+
+        if should_activate and not aux_active and can_enable:
+            aux_active = True
+            self._aux_last_on[zone_id] = now
+        elif not should_activate and aux_active and can_disable:
+            aux_active = False
+            self._aux_last_off[zone_id] = now
+
+        self._aux_active[zone_id] = aux_active
+        return aux_active
+
+    def _compute_aux_activation_window(self, temp_error: float, temp_tolerance: float) -> float:
+        """
+        Computes how long (in minutes) the heat pump alone is given to close the gap with the target temperature
+        before the resistive backup is allowed to kick in. The window shrinks linearly as the temperature error
+        grows, so a large deviation reacts much faster than a small one.
+        """
+        base_window_minutes = 20.0  # Grace period for a small temperature gap, to be tuned
+        fast_window_minutes = 3.0  # Minimum grace period, used once the error reaches the fast-reaction threshold
+        fast_reaction_error_threshold = 1.5  # Degrees Celsius gap considered "large" and requiring a fast reaction
+
+        if temp_error >= fast_reaction_error_threshold:
+            return fast_window_minutes
+
+        ratio = (temp_error - temp_tolerance) / (fast_reaction_error_threshold - temp_tolerance)
+        ratio = max(0.0, min(1.0, ratio))
+        return base_window_minutes - ratio * (base_window_minutes - fast_window_minutes)
+
+    def _clear_aux_backup_state(self, zone_id: str) -> None:
+        self._aux_active[zone_id] = False
+        self._heat_demand_start.pop(zone_id, None)
+
+    def _get_heat_pump_heating_offset(
+        self,
+        target_temperature: float,
+        indoor_temperature: float | None,
+        max_offset: float,
+    ) -> float:
+        """
+        Computes how far above the target the heat pump setpoint should be pushed, in heating mode, to keep it
+        modulating at (or near) its maximum output while it is still catching up.
+
+        The offset is capped at the current heating deficit (target - indoor), so it tapers down to zero as the
+        room approaches/exceeds the target instead of staying pinned at `max_offset`. Without this tapering, the
+        heat pump would keep chasing target + max_offset even once comfort is reached, causing a permanent
+        overshoot (and discomfort) any time the heat pump is actually capable of reaching that point, e.g. in mild
+        weather.
+        """
+        if indoor_temperature is None:
+            # Sensor unavailable: fall back to the full offset (conservative, avoids under-heating)
+            return max_offset
+
+        heating_deficit = target_temperature - indoor_temperature  # positive => room is colder than target
+        return min(max_offset, max(0.0, heating_deficit))
+
+    def _get_stable_heat_pump_setpoint(
+        self,
+        zone_id: str,
+        raw_setpoint: float,
+        hysteresis: float = 0.75,
+    ) -> int:
+        """
+        Converts the continuously-computed raw setpoint (target + offset) into a stable, integer setpoint to send
+        to the heat pump, applying hysteresis to avoid changing it on every control cycle.
+
+        Without this, since the heating offset now varies continuously with indoor temperature (see
+        _get_heat_pump_heating_offset), `math.ceil(raw_setpoint)` could flip back and forth between two
+        consecutive integers on every cycle (every 120 s, see main.py) whenever `raw_setpoint` hovers near an
+        integer boundary, due to nothing more than normal sensor noise. Repeatedly re-sending a changed setpoint
+        to the heat pump this often could induce excessive internal compressor modulation/cycling and affect its
+        durability.
+
+        The previously applied setpoint is kept as long as `raw_setpoint` hasn't drifted away from it by more
+        than `hysteresis` degrees; once it does, a new integer setpoint is computed and becomes the new reference
+        point. This still reacts to real, sustained changes in heating demand, just not to momentary noise.
+        """
+        previous_setpoint = self._heat_pump_setpoint.get(zone_id)
+
+        if previous_setpoint is None or abs(raw_setpoint - previous_setpoint) >= hysteresis:
+            previous_setpoint = math.ceil(raw_setpoint)
+            self._heat_pump_setpoint[zone_id] = previous_setpoint
+
+        return previous_setpoint
 
     def _get_control_actions_for_heat_pump(
         self,
