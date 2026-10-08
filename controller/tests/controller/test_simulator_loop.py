@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from controller.optimal.thermostat import ThermostatController
-from controller.optimal.base import ControlContext
+from controller.devices.thermostat import ThermostatController
+from controller.base import ControlContext
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
 from tests.mocks import MockDevice, MockHomeAssistant, make_states

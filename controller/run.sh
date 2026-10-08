@@ -15,5 +15,25 @@ export WEATHER_ENTITY_ID
 HEAT_PUMP_MODEL="$(bashio::config 'heat_pump_model')"
 export HEAT_PUMP_MODEL
 
+CONTROL_MODE="$(bashio::config 'control_mode')"
+CONTROL_MODE="${CONTROL_MODE:-shadow}"
+export CONTROL_MODE
+
+CONTROL_ALLOWLIST="$(bashio::config 'control_allowlist')"
+CONTROL_ALLOWLIST="${CONTROL_ALLOWLIST:-}"
+export CONTROL_ALLOWLIST
+
+HEMS_POLL_SECONDS="$(bashio::config 'hems_poll_seconds')"
+HEMS_POLL_SECONDS="${HEMS_POLL_SECONDS:-30}"
+export HEMS_POLL_SECONDS
+
+HA_RECONCILIATION_SECONDS="$(bashio::config 'ha_reconciliation_seconds')"
+HA_RECONCILIATION_SECONDS="${HA_RECONCILIATION_SECONDS:-900}"
+export HA_RECONCILIATION_SECONDS
+
+HEMS_MAX_SNAPSHOT_AGE_SECONDS="$(bashio::config 'hems_max_snapshot_age_seconds')"
+HEMS_MAX_SNAPSHOT_AGE_SECONDS="${HEMS_MAX_SNAPSHOT_AGE_SECONDS:-300}"
+export HEMS_MAX_SNAPSHOT_AGE_SECONDS
+
 bashio::log.info "Starting the controller add-on"
 poetry run python -m controller.main

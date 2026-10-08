@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from controller.optimal.zone import ZoneController, ZoneControlParameters
+from controller.devices.zone import ZoneController, ZoneControlParameters
 
 
 def test_zone_control_parameters_defaults():

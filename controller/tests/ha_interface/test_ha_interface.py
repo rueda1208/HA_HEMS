@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 
 with patch("sqlalchemy.create_engine", return_value=MagicMock()):
-    from controller.ha_interface.ha_interface import HEAT_PUMP_ENTITY_ID, HomeAssistantDeviceInterface
+    from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 
 
 class ResponseDouble:
@@ -45,8 +45,17 @@ def test_get_devices_states_propagates_http_failure():
             raise AssertionError("Expected the HA error to propagate")
 
 
-def test_execute_zone_setpoint_posts_temperature_and_skips_same_value():
+def test_execute_control_actions_are_disabled_by_default():
     interface = HomeAssistantDeviceInterface("http://ha", "token")
+
+    with patch("controller.ha_interface.ha_interface.requests.post") as post:
+        interface.execute_control_actions({"climate.thermostat": 21.0}, {})
+
+    post.assert_not_called()
+
+
+def test_execute_zone_setpoint_posts_temperature_and_skips_same_value():
+    interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
     interface._save_in_database = MagicMock()
     states = {"climate.thermostat": {"attributes": {"temperature": 20.0}}}
 
@@ -60,25 +69,28 @@ def test_execute_zone_setpoint_posts_temperature_and_skips_same_value():
         "http://ha/api/services/climate/set_temperature",
         headers=interface._headers,
         json={"entity_id": "climate.thermostat", "temperature": 21.0},
+        timeout=10,
     )
 
 
 def test_execute_heat_pump_posts_mode_and_setpoint():
-    interface = HomeAssistantDeviceInterface("http://ha", "token")
+    interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
     interface._save_in_database = MagicMock()
-    states = {HEAT_PUMP_ENTITY_ID: {"state": "off", "attributes": {"temperature": 18.0}}}
-    action = {HEAT_PUMP_ENTITY_ID: {"state": "heat", "setpoint": 21.0, "user_pref": 20.0}}
+    heat_pump_entity_id = "climate.configured_heat_pump"
+    states = {heat_pump_entity_id: {"state": "off", "attributes": {"temperature": 18.0}}}
+    action = {heat_pump_entity_id: {"state": "heat", "setpoint": 21.0, "user_pref": 20.0}}
 
     with patch("controller.ha_interface.ha_interface.requests.post", return_value=ResponseDouble({})) as post:
         interface.execute_control_actions(action, states)
 
     assert post.call_count == 2
-    assert post.call_args_list[0].kwargs["json"] == {"entity_id": HEAT_PUMP_ENTITY_ID, "hvac_mode": "heat"}
-    assert post.call_args_list[1].kwargs["json"] == {"entity_id": HEAT_PUMP_ENTITY_ID, "temperature": 21.0}
+    assert post.call_args_list[0].kwargs["json"] == {"entity_id": heat_pump_entity_id, "hvac_mode": "heat"}
+    assert post.call_args_list[1].kwargs["json"] == {"entity_id": heat_pump_entity_id, "temperature": 21.0}
+    assert all(call.kwargs["timeout"] == 10 for call in post.call_args_list)
 
 
 def test_execute_control_actions_propagates_service_failure():
-    interface = HomeAssistantDeviceInterface("http://ha", "token")
+    interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
     interface._save_in_database = MagicMock()
     response = MagicMock()
     response.raise_for_status.side_effect = RuntimeError("service failed")

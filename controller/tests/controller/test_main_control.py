@@ -1,0 +1,49 @@
+from unittest.mock import MagicMock
+
+import pytest
+
+from controller.main import _get_hems_poll_seconds, dispatch_control_actions, setpoint_entity_ids
+from controller.utils.device_type import DeviceType
+
+
+def test_shadow_mode_logs_proposals_without_calling_home_assistant():
+    ha_interface = MagicMock()
+    actions = {"climate.thermostat": 21.0}
+
+    dispatch_control_actions(ha_interface, actions, {}, "shadow", set())
+
+    ha_interface.execute_control_actions.assert_not_called()
+
+
+def test_live_mode_dispatches_only_allowlisted_entities():
+    ha_interface = MagicMock()
+    actions = {"climate.allowed": 21.0, "climate.blocked": 19.0}
+    states = {"climate.allowed": {"state": "heat"}}
+
+    dispatch_control_actions(ha_interface, actions, states, "live", {"climate.allowed"})
+
+    ha_interface.execute_control_actions.assert_called_once_with({"climate.allowed": 21.0}, states)
+
+
+def test_live_mode_requires_a_nonempty_allowlist():
+    with pytest.raises(ValueError, match="non-empty CONTROL_ALLOWLIST"):
+        dispatch_control_actions(MagicMock(), {"climate.thermostat": 21.0}, {}, "live", set())
+
+
+def test_setpoint_event_entities_include_only_thermostats_and_heat_pumps():
+    configurations = {
+        "climate.thermostat": {"device_type": DeviceType.THERMOSTAT},
+        "climate.heat_pump": {"device_type": DeviceType.HEAT_PUMP},
+        "zone.living_room": {"device_type": DeviceType.ZONE},
+        "sensor.temperature": {"device_type": "sensor"},
+    }
+
+    assert setpoint_entity_ids(configurations) == {"climate.thermostat", "climate.heat_pump"}
+
+
+def test_hems_poll_seconds_defaults_to_thirty_and_accepts_environment_override(monkeypatch):
+    monkeypatch.delenv("HEMS_POLL_SECONDS", raising=False)
+    assert _get_hems_poll_seconds() == 30
+
+    monkeypatch.setenv("HEMS_POLL_SECONDS", "45")
+    assert _get_hems_poll_seconds() == 45

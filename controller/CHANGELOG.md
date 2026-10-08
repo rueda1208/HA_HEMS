@@ -1,3 +1,9 @@
+## 1.1.19
+
+- Make the event-driven controller the add-on runtime
+- Default to shadow mode and require an entity allowlist for live control
+- Reconcile HA setpoints from events and poll HEMS on a configurable interval
+
 ## 1.1.18
 
 - Enhanced logging format

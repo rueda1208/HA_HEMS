@@ -1,7 +1,9 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from controller.optimal.ha_events import HomeAssistantEventListener
+import websocket
+
+from controller.ha_events import HomeAssistantEventListener
 
 
 def state_changed_message(entity_id="climate.thermostat"):
@@ -37,22 +39,60 @@ def test_relevant_event_filter_can_use_explicit_entity_ids():
     assert not listener._is_relevant_state_changed(state_changed_message("climate.other"))
 
 
+def test_temperature_filter_only_accepts_changed_setpoint_on_relevant_entity():
+    listener = HomeAssistantEventListener(
+        "http://ha",
+        "token",
+        lambda event: None,
+        relevant_entity_ids={"climate.thermostat"},
+        relevant_attribute="temperature",
+    )
+    changed = state_changed_message("climate.thermostat")
+    changed["event"]["data"]["old_state"] = {"attributes": {"temperature": 20}}
+    changed["event"]["data"]["new_state"] = {"attributes": {"temperature": 21}}
+
+    unchanged = state_changed_message("climate.thermostat")
+    unchanged["event"]["data"]["old_state"] = {"attributes": {"temperature": 20}}
+    unchanged["event"]["data"]["new_state"] = {"attributes": {"temperature": 20}}
+
+    unrelated_entity = state_changed_message("climate.other")
+    unrelated_entity["event"]["data"]["old_state"] = {"attributes": {"temperature": 20}}
+    unrelated_entity["event"]["data"]["new_state"] = {"attributes": {"temperature": 21}}
+
+    assert listener._is_relevant_state_changed(changed)
+    assert not listener._is_relevant_state_changed(unchanged)
+    assert not listener._is_relevant_state_changed(unrelated_entity)
+
+
+def test_relevant_entity_ids_can_be_refreshed():
+    listener = HomeAssistantEventListener(
+        "http://ha", "token", lambda event: None, relevant_entity_ids={"climate.old"}
+    )
+
+    listener.set_relevant_entity_ids({"climate.new"})
+
+    assert listener._is_relevant_state_changed(state_changed_message("climate.new"))
+    assert not listener._is_relevant_state_changed(state_changed_message("climate.old"))
+
+
 def test_listen_once_authenticates_subscribes_and_forwards_event():
     connection = MagicMock()
     connection.recv.side_effect = [
         json.dumps({"type": "auth_required", "ha_version": "2026.8"}),
         json.dumps({"type": "auth_ok", "ha_version": "2026.8"}),
         json.dumps({"type": "result", "id": 1, "success": True, "result": None}),
+        websocket.WebSocketTimeoutException("idle connection"),
         json.dumps(state_changed_message()),
     ]
     received = []
     listener = HomeAssistantEventListener("http://ha", "secret", received.append)
     listener._on_state_changed = lambda event: (received.append(event), listener._stop_event.set())
 
-    with patch("controller.optimal.ha_events.websocket.create_connection", return_value=connection):
+    with patch("controller.ha_events.websocket.create_connection", return_value=connection):
         listener._listen_once()
 
     assert received == [state_changed_message()]
+    connection.settimeout.assert_called_once_with(1.0)
     sent_messages = [json.loads(call.args[0]) for call in connection.send.call_args_list]
     assert sent_messages[0] == {"type": "auth", "access_token": "secret"}
     assert sent_messages[1] == {"id": 1, "type": "subscribe_events", "event_type": "state_changed"}
@@ -67,7 +107,7 @@ def test_listen_once_rejects_auth_failure():
     ]
     listener = HomeAssistantEventListener("http://ha", "secret", lambda event: None)
 
-    with patch("controller.optimal.ha_events.websocket.create_connection", return_value=connection):
+    with patch("controller.ha_events.websocket.create_connection", return_value=connection):
         try:
             listener._listen_once()
         except RuntimeError as error:

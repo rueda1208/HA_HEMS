@@ -3,6 +3,7 @@ import logging
 import os
 
 from enum import StrEnum
+from functools import lru_cache
 from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict
 
@@ -57,9 +58,7 @@ def setup_logging(filename: str):
 def get_heat_pump_cop(control_mode: ControlMode, outside_temperature: float) -> float:
     hems_api_base_url = os.getenv("HEMS_API_BASE_URL", "http://hems-api.hydroquebec.lab:8500")
     heat_pump_model = os.getenv("HEAT_PUMP_MODEL", "DLCERBH18AAK")
-    response = requests.get(f"{hems_api_base_url}/api/devices/specifications/{heat_pump_model}", verify=False)
-    response.raise_for_status()
-    heat_pump_specifications = response.json()
+    heat_pump_specifications = _get_heat_pump_specifications(hems_api_base_url, heat_pump_model)
 
     if control_mode == ControlMode.COOLING:
         cop_points = heat_pump_specifications.get("cooling", {}).get("COP_points", {})
@@ -79,6 +78,15 @@ def get_heat_pump_cop(control_mode: ControlMode, outside_temperature: float) -> 
     )
 
     return cop
+
+
+@lru_cache(maxsize=16)
+def _get_heat_pump_specifications(hems_api_base_url: str, heat_pump_model: str) -> Dict[str, Any]:
+    response = requests.get(
+        f"{hems_api_base_url}/api/devices/specifications/{heat_pump_model}", verify=False, timeout=10
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 def retrieve_gdp_event() -> PeakEvent | None:

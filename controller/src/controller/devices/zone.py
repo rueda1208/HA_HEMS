@@ -12,9 +12,9 @@ import numpy as np
 
 from sqlalchemy import Engine, text
 
-from controller.optimal.base import ControlContext
-from controller.optimal.helpers import get_devices_for_zone, get_heat_pump_device_id, get_indoor_temperature
-from controller.optimal.target_temperature import resolve_target_temperature
+from controller.base import ControlContext
+from controller.helpers import get_devices_for_zone, get_heat_pump_device_id, get_indoor_temperature
+from controller.target_temperature import resolve_target_temperature
 from controller.utils import utils
 
 
@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ZoneControlParameters:
-    """Tunable proportional-control parameters, overridable per zone via device configuration. Defaults match the
-    hardcoded values in ClimateController._get_control_actions_for_zone.
-    """
+    """Tunable proportional-control parameters, overridable per zone via device configuration."""
 
     max_heat_push: float = 1.5
     max_cool_push: float = -2.0
@@ -56,9 +54,7 @@ class ZoneControlParameters:
 
 
 class ZoneController:
-    """Optimal implementation for a zone (device_type=zone), mirroring ClimateController._get_control_actions_for_zone
-    but using the shared target-temperature resolution and configurable control parameters.
-    """
+    """Calculate zone actions using target-temperature resolution and configurable control parameters."""
 
     def __init__(self, db_engine: Engine) -> None:
         self._db_engine = db_engine

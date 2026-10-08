@@ -1,5 +1,6 @@
 import logging
 import os
+from functools import lru_cache
 
 from typing import Any, Dict, List
 
@@ -24,31 +25,31 @@ POSTGRES_DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "homeassistant")
 
 # Create database connection URL
 db_url = (
-    f"postgresql://{POSTGRES_DB_USER}:{POSTGRES_DB_PASSWORD}@{POSTGRES_DB_HOST}:{POSTGRES_DB_PORT}/{POSTGRES_DB_NAME}"
+    f"postgresql+psycopg2://{POSTGRES_DB_USER}:{POSTGRES_DB_PASSWORD}@{POSTGRES_DB_HOST}:{POSTGRES_DB_PORT}/{POSTGRES_DB_NAME}"
 )
 
-# Create SQLAlchemy engine
-postgres_db_engine = create_engine(db_url)
-
-HEAT_PUMP_ENTITY_ID = "climate.heat_pump"
-
+@lru_cache(maxsize=1)
+def _get_postgres_db_engine():
+    return create_engine(db_url)
 
 class HomeAssistantDeviceInterface:
     _url_base: str
     _headers: Dict[str, str]
+    _allow_control: bool
 
     def _get_temperature(self, device_state: Dict[str, Any]) -> Any:
         return device_state.get("attributes", {}).get("temperature", device_state.get("temperature"))
 
-    def __init__(self, base_url: str, token: str) -> None:
+    def __init__(self, base_url: str, token: str, allow_control: bool = False) -> None:
         self._url_base = base_url
         self._headers = {"Authorization": f"Bearer {token}", "content-type": "application/json"}
+        self._allow_control = allow_control
 
     def get_devices_states(self) -> Dict[str, Any]:
         """
         Retrieves the state of all the devices from the Home Assistant API.
         """
-        response = requests.get(f"{self._url_base}/api/states", headers=self._headers)
+        response = requests.get(f"{self._url_base}/api/states", headers=self._headers, timeout=10)
         response.raise_for_status()
         response_json: List = response.json()
 
@@ -62,6 +63,11 @@ class HomeAssistantDeviceInterface:
         return devices_states
 
     def execute_control_actions(self, control_actions: Dict[str, Any], devices_states: Dict[str, Any]) -> None:
+        if not self._allow_control:
+            if control_actions:
+                logger.info("Suppressing %s control actions because actuator control is disabled", len(control_actions))
+            return
+
         credentials = {
             "api_url": f"{self._url_base}/api/services/climate/set_temperature",
             "headers": self._headers,
@@ -72,32 +78,32 @@ class HomeAssistantDeviceInterface:
             return
 
         for entity_id, action in control_actions.items():
-            # TODO: we should check the device type instead
-            if entity_id == HEAT_PUMP_ENTITY_ID:
-                # Set heat pump mode
-                if action["state"] == devices_states.get(HEAT_PUMP_ENTITY_ID, {}).get("state"):
-                    logger.info(f"No change to heat pump state requested (remains {action['state']})")
+            if isinstance(action, dict):
+                current_state = devices_states.get(entity_id, {})
+                hvac_mode = action["state"]
+                if hvac_mode == current_state.get("state"):
+                    logger.info(f"No change to heat pump state requested for {entity_id} (remains {hvac_mode})")
                 else:
-                    logger.info(f"Setting heat pump state to {action['state']}")
+                    logger.info(f"Setting heat pump state for {entity_id} to {hvac_mode}")
                     credentials["api_url"] = f"{self._url_base}/api/services/climate/set_hvac_mode"
                     params = {
-                        "action": {"entity_id": HEAT_PUMP_ENTITY_ID, "hvac_mode": action["state"]},
+                        "action": {"entity_id": entity_id, "hvac_mode": hvac_mode},
                     }
 
                     self._send_action(credentials, params)
 
                 # Set heat pump temperature setpoint
-                if action["state"] == utils.ControlMode.OFF:
+                if hvac_mode == utils.ControlMode.OFF:
                     logger.info("Heat pump turned off, skipping setpoint adjustment")
                 else:
                     setpoint = action["setpoint"]
-                    if setpoint == self._get_temperature(devices_states.get(HEAT_PUMP_ENTITY_ID, {})):
-                        logger.info(f"No change to heat pump setpoint requested (remains {setpoint} C)")
+                    if setpoint == self._get_temperature(current_state):
+                        logger.info(f"No change to heat pump setpoint requested for {entity_id} (remains {setpoint} C)")
                     else:
-                        logger.info(f"Setting heat pump setpoint to {setpoint} C")
+                        logger.info(f"Setting heat pump setpoint for {entity_id} to {setpoint} C")
                         credentials["api_url"] = f"{self._url_base}/api/services/climate/set_temperature"
                         params = {
-                            "action": {"entity_id": HEAT_PUMP_ENTITY_ID, "temperature": setpoint},
+                            "action": {"entity_id": entity_id, "temperature": setpoint},
                         }
 
                         self._send_action(credentials, params)
@@ -106,7 +112,7 @@ class HomeAssistantDeviceInterface:
                 self._save_in_database(
                     data={
                         "metric_type": "control",
-                        "device_id": HEAT_PUMP_ENTITY_ID,
+                        "device_id": entity_id,
                         "name": "user_pref",
                         "value": action["user_pref"],
                     }
@@ -128,7 +134,7 @@ class HomeAssistantDeviceInterface:
         headers = credentials["headers"]
         action = params["action"]
 
-        response = requests.post(api_url, headers=headers, json=action)
+        response = requests.post(api_url, headers=headers, json=action, timeout=10)
         response.raise_for_status()
         logger.debug("Device %s requested to apply action %s", action["entity_id"], action)
         self._save_control_actions(control_actions=action)
@@ -174,7 +180,7 @@ class HomeAssistantDeviceInterface:
         # Save to TimescaleDB
         data_to_save.to_sql(
             name="space_heating",
-            con=postgres_db_engine,
+            con=_get_postgres_db_engine(),
             if_exists="append",
         )
 

@@ -10,8 +10,7 @@ from controller.utils.peak_events import PeakEvent
 
 @dataclass
 class ControlContext:
-    """Single, uniform set of inputs for every optimal device controller (contrast with the legacy `devices/`
-    controllers, whose signatures differ per device type and made polymorphic dispatch impractical)."""
+    """Uniform inputs shared by every device controller."""
 
     device_id: str
     device_configuration: Dict[str, Any]

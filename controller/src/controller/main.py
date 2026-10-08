@@ -1,15 +1,74 @@
 import logging
 import os
 import time
+from dataclasses import dataclass
+from queue import Empty, Full, Queue
+from threading import Event, Lock, Thread
+from typing import Any
 
 import requests
-import schedule
 
 from sqlalchemy import create_engine
 
 from controller.controller import Controller
+from controller.ha_events import HomeAssistantEventListener
 from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 from controller.utils import utils
+from controller.utils.device_type import DeviceType
+from controller.utils.peak_events import PeakEvent
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class HemsSnapshot:
+    configurations: dict[str, Any]
+    gdp_event: PeakEvent | None
+    fetched_at: float
+
+
+def fetch_hems_snapshot() -> HemsSnapshot:
+    return HemsSnapshot(
+        configurations=utils.retrieve_device_configuration(),
+        gdp_event=utils.retrieve_gdp_event(),
+        fetched_at=time.monotonic(),
+    )
+
+
+def setpoint_entity_ids(configurations: dict[str, Any]) -> set[str]:
+    return {
+        entity_id
+        for entity_id, configuration in configurations.items()
+        if configuration.get("device_type") in (DeviceType.THERMOSTAT, DeviceType.HEAT_PUMP)
+    }
+
+
+def _get_hems_poll_seconds() -> float:
+    return float(os.getenv("HEMS_POLL_SECONDS", "30"))
+
+
+def dispatch_control_actions(
+    ha_interface: HomeAssistantDeviceInterface,
+    control_actions: dict[str, Any],
+    devices_states: dict[str, Any],
+    control_mode: str,
+    allowlist: set[str],
+) -> None:
+    if control_mode == "shadow":
+        logger.info("SHADOW MODE: proposed control actions: %s", control_actions)
+        return
+
+    if control_mode != "live":
+        raise ValueError(f"Unsupported CONTROL_MODE: {control_mode}")
+    if not allowlist:
+        raise ValueError("Live control requires a non-empty CONTROL_ALLOWLIST")
+
+    allowed_actions = {entity_id: action for entity_id, action in control_actions.items() if entity_id in allowlist}
+    blocked_entity_ids = set(control_actions) - set(allowed_actions)
+    logger.info("Live actions: %s; blocked by allowlist: %s", allowed_actions, sorted(blocked_entity_ids))
+    if allowed_actions:
+        ha_interface.execute_control_actions(allowed_actions, devices_states)
 
 
 def main() -> None:
@@ -19,12 +78,23 @@ def main() -> None:
     logger.info("Starting controller module ...")
 
     base_url = os.getenv("BASE_HA_URL", "http://supervisor/core")
-    token = str(os.getenv("SUPERVISOR_TOKEN"))
+    token = os.getenv("SUPERVISOR_TOKEN")
     hems_api_base_url = os.getenv("HEMS_API_BASE_URL", "http://hems-api.hydroquebec.lab:8500")
     building_id = os.getenv("BUILDING_ID")
+    if not token:
+        raise RuntimeError("SUPERVISOR_TOKEN is required")
+    if not building_id:
+        raise RuntimeError("BUILDING_ID is required")
+
+    control_mode = os.getenv("CONTROL_MODE", "shadow").strip().lower()
+    if control_mode not in {"shadow", "live"}:
+        raise ValueError("CONTROL_MODE must be 'shadow' or 'live'")
+    allowlist = {item.strip() for item in os.getenv("CONTROL_ALLOWLIST", "").split(",") if item.strip()}
+    if control_mode == "live" and not allowlist:
+        raise ValueError("CONTROL_ALLOWLIST must contain at least one entity when CONTROL_MODE=live")
 
     # Retrieve the list of devices from Home Assistant.
-    ha_interface = HomeAssistantDeviceInterface(base_url, token)
+    ha_interface = HomeAssistantDeviceInterface(base_url, token, allow_control=control_mode == "live")
 
     # Get TimescaleDB connection parameters
     postgres_db_name = os.getenv("POSTGRES_NAME", "homeassistant")
@@ -34,20 +104,87 @@ def main() -> None:
     postgres_db_password = os.getenv("POSTGRES_PASSWORD", "homeassistant")
 
     # Create database connection URL
-    db_url = f"postgresql://{postgres_db_user}:{postgres_db_password}@{postgres_db_host}:{postgres_db_port}/{postgres_db_name}"
+    db_url = (
+        f"postgresql+psycopg2://{postgres_db_user}:{postgres_db_password}"
+        f"@{postgres_db_host}:{postgres_db_port}/{postgres_db_name}"
+    )
 
     # Create SQLAlchemy engine
     postgres_db_engine = create_engine(db_url)
 
     controller = Controller(postgres_db_engine)
+    hems_poll_seconds = _get_hems_poll_seconds()
+    reconciliation_seconds = float(os.getenv("HA_RECONCILIATION_SECONDS", "900"))
+    max_snapshot_age_seconds = float(os.getenv("HEMS_MAX_SNAPSHOT_AGE_SECONDS", "300"))
+    if min(hems_poll_seconds, reconciliation_seconds, max_snapshot_age_seconds) <= 0:
+        raise ValueError("Polling, reconciliation, and snapshot-age intervals must be greater than zero")
 
-    # Main control loop
-    def _main_loop():
-        # Get the state of all the devices in Home Assistant
+    trigger_queue: Queue[None] = Queue(maxsize=1)
+    stop_event = Event()
+    snapshot_lock = Lock()
+    snapshot: HemsSnapshot | None = None
+
+    def request_control_evaluation(source: str) -> None:
+        try:
+            trigger_queue.put_nowait(None)
+            logger.debug("Queued control evaluation from %s", source)
+        except Full:
+            logger.debug("Control evaluation already queued; coalescing %s trigger", source)
+
+    def on_ha_setpoint_changed(event: dict[str, Any]) -> None:
+        data = event.get("event", {}).get("data", {})
+        entity_id = data.get("entity_id")
+        old_temperature = (data.get("old_state") or {}).get("attributes", {}).get("temperature")
+        new_temperature = (data.get("new_state") or {}).get("attributes", {}).get("temperature")
+        logger.info("HA setpoint changed: %s %s -> %s", entity_id, old_temperature, new_temperature)
+        request_control_evaluation("ha_setpoint")
+
+    event_listener = HomeAssistantEventListener(
+        base_url=base_url,
+        token=token,
+        on_state_changed=on_ha_setpoint_changed,
+        relevant_entity_ids=set(),
+        relevant_attribute="temperature",
+    )
+
+    def poll_hems() -> None:
+        nonlocal snapshot
+        while not stop_event.is_set():
+            try:
+                fresh_snapshot = fetch_hems_snapshot()
+                with snapshot_lock:
+                    snapshot = fresh_snapshot
+                event_listener.set_relevant_entity_ids(setpoint_entity_ids(fresh_snapshot.configurations))
+                logger.info("HEMS configuration and GDP snapshot refreshed")
+            except Exception:
+                logger.exception("HEMS polling failed; retaining the last successful snapshot")
+            finally:
+                request_control_evaluation("hems_poll")
+
+            if stop_event.wait(hems_poll_seconds):
+                break
+
+    poll_thread = Thread(target=poll_hems, name="hems-poller", daemon=True)
+
+    def evaluate_control() -> None:
+        with snapshot_lock:
+            current_snapshot = snapshot
+        if current_snapshot is None:
+            logger.warning("Skipping evaluation until the first HEMS snapshot is available")
+            return
+
+        snapshot_age = time.monotonic() - current_snapshot.fetched_at
+        if snapshot_age > max_snapshot_age_seconds:
+            logger.error("Skipping control: HEMS snapshot is stale (%.1f seconds old)", snapshot_age)
+            return
+
         devices_states = ha_interface.get_devices_states()
-
-        control_actions = controller.get_control_actions(devices_states)
-        ha_interface.execute_control_actions(control_actions, devices_states)
+        control_actions = controller.get_control_actions(
+            devices_states,
+            configurations=current_snapshot.configurations,
+            gdp_event=current_snapshot.gdp_event,
+        )
+        dispatch_control_actions(ha_interface, control_actions, devices_states, control_mode, allowlist)
 
         metric = {
             "metrics": [
@@ -59,28 +196,30 @@ def main() -> None:
                 }
             ]
         }
-        requests.post(f"{hems_api_base_url}/api/devices/{building_id}", json=metric, verify=False)
+        requests.post(f"{hems_api_base_url}/api/devices/{building_id}", json=metric, verify=False, timeout=10)
 
     try:
-        # Execute one time on start
-        _main_loop()
+        event_listener.start()
+        poll_thread.start()
 
-        # Schedule the job every N seconds
-        schedule.every(120).seconds.do(_main_loop)
-
-        # Run the scheduler in a loop
         while True:
-            schedule.run_pending()
-            time.sleep(1)
+            try:
+                trigger_queue.get(timeout=reconciliation_seconds)
+            except Empty:
+                logger.info("Running periodic HA state reconciliation")
+
+            try:
+                evaluate_control()
+            except Exception:
+                logger.exception("Control evaluation failed")
 
     except KeyboardInterrupt:
         logger.info("Application interrupted by the user")
-
-    except Exception as ex:
-        logger.error("An error occurred: %s", ex, exc_info=True)
-
-    logger.info("Waiting 5 minutes before restarting the module, to avoid overloading the gdp server")
-    time.sleep(300)
+    finally:
+        stop_event.set()
+        event_listener.stop()
+        if poll_thread.is_alive():
+            poll_thread.join(timeout=5)
 
 
 if __name__ == "__main__":

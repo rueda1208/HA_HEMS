@@ -2,21 +2,15 @@ import logging
 
 from typing import Any, Dict
 
-from controller.utils.peak_events import PeakEvent
+from controller.base import ControlContext
 
 
 logger = logging.getLogger(__name__)
 
 
 class ElectricVehicleController:
-    def get_control_actions(
-        self,
-        device_id: str,
-        device_configuration: Dict[str, Any],
-        all_devices_configurations: Dict[str, Any],
-        devices_states: Dict[str, Any],
-        gdp_event: PeakEvent | None,
-    ) -> Dict[str, Any]:
-        logger.info(f"Getting control actions for electric vehicle device {device_id} *** NOT IMPLEMENTED YET ***")
-        control_actions: Dict[str, Any] = {}
-        return control_actions
+    def get_control_actions(self, context: ControlContext) -> Dict[str, Any]:
+        logger.info(
+            f"Getting control actions for electric vehicle device {context.device_id} *** NOT IMPLEMENTED YET ***"
+        )
+        return {}

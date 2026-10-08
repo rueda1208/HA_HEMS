@@ -4,23 +4,22 @@ import logging
 
 from typing import Any, Dict
 
-from controller.optimal.base import ControlContext
-from controller.optimal.helpers import is_linked_to_controlled_zone
-from controller.optimal.target_temperature import resolve_target_temperature
+from controller.base import ControlContext
+from controller.helpers import is_linked_to_controlled_zone
+from controller.target_temperature import resolve_target_temperature
+from controller.utils import utils
 
 
 logger = logging.getLogger(__name__)
 
 
-class ThermostatController:
-    """Optimal implementation for a standalone thermostat (device_type=thermostat), mirroring
-    ClimateController._get_control_actions_for_thermostat but using the shared target-temperature resolution.
-    """
+class HeatPumpController:
+    """Calculate actions for a standalone heat pump."""
 
     def get_control_actions(self, context: ControlContext) -> Dict[str, Any]:
         if is_linked_to_controlled_zone(context.device_configuration, context.all_devices_configurations):
             logger.info(
-                f"Thermostat {context.device_id} is linked to a controlled zone, skipping individual control actions"
+                f"Heat pump {context.device_id} is linked to a controlled zone, skipping individual control actions"
             )
             return {}
 
@@ -36,4 +35,10 @@ class ThermostatController:
             f"(source={resolution.source}, phase={resolution.gdp_phase})"
         )
 
-        return {context.device_id: resolution.value}
+        return {
+            context.device_id: {
+                "state": "heat" if context.control_mode == utils.ControlMode.HEATING else "cool",
+                "setpoint": resolution.value,
+                "user_pref": resolution.value,
+            }
+        }

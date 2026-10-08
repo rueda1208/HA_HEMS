@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from controller.optimal.target_temperature import TargetTemperatureSource, resolve_target_temperature
+from controller.target_temperature import TargetTemperatureSource, resolve_target_temperature
 from controller.utils.peak_event_plan import GdpPhase
 from controller.utils.peak_events import PeakEvent
 

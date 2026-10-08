@@ -1,33 +1,45 @@
 import logging
 import os
 
+from datetime import datetime
 from typing import Any, Dict
 
 from sqlalchemy import Engine
 
-from controller.devices import BatteryController, ClimateController, ElectricVehicleController, WaterHeaterController
+from controller.base import ControlContext, DeviceController
+from controller.devices import (
+    BatteryController,
+    ElectricVehicleController,
+    HeatPumpController,
+    ThermostatController,
+    WaterHeaterController,
+    ZoneController,
+)
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
+from controller.utils.peak_events import PeakEvent
 
 
 logger = logging.getLogger(__name__)
 
 
 class Controller:
-    _climate_controller: ClimateController
-    _battery_controller: BatteryController
-    _electric_vehicle_controller: ElectricVehicleController
-    _water_heater_controller: WaterHeaterController
-
     def __init__(self, db_engine: Engine) -> None:
-        self._climate_controller = ClimateController(db_engine)
-        self._battery_controller = BatteryController()
-        self._electric_vehicle_controller = ElectricVehicleController()
-        self._water_heater_controller = WaterHeaterController()
+        self._device_controllers: Dict[DeviceType, DeviceController] = {
+            DeviceType.ZONE: ZoneController(db_engine),
+            DeviceType.HEAT_PUMP: HeatPumpController(),
+            DeviceType.THERMOSTAT: ThermostatController(),
+            DeviceType.BATTERY: BatteryController(),
+            DeviceType.ELECTRIC_VEHICLE: ElectricVehicleController(),
+            DeviceType.WATER_HEATER: WaterHeaterController(),
+        }
 
-    def get_control_actions(self, devices_states: Dict[str, Any]) -> Dict[str, Any]:
-        configurations = utils.retrieve_device_configuration()
-
+    def get_control_actions(
+        self,
+        devices_states: Dict[str, Any],
+        configurations: Dict[str, Any],
+        gdp_event: PeakEvent | None,
+    ) -> Dict[str, Any]:
         building_id = str(os.getenv("BUILDING_ID"))
 
         control_mode_str = configurations.get(f"hub.{building_id.lower()}", {}).get("mode", {}).get("value", "off")
@@ -36,7 +48,6 @@ class Controller:
             logger.info("Controller is in OFF mode, skipping control actions")
             return {}
 
-        gdp_event = utils.retrieve_gdp_event()
         if gdp_event:
             logger.info("GDP event detected, adjusting control strategy accordingly")
         else:
@@ -46,44 +57,24 @@ class Controller:
 
         for device_id, configuration in configurations.items():
             device_type = configuration.get("device_type")
-
             if device_type == DeviceType.HUB:
                 logger.debug(f"No control actions required for device of type hub: {device_id}")
-            elif (
-                device_type == DeviceType.ZONE
-                or device_type == DeviceType.THERMOSTAT
-                or device_type == DeviceType.HEAT_PUMP
-            ):
-                logger.debug(f"Processing control actions for zone or climate device: {device_id}")
-                control_actions.update(
-                    self._climate_controller.get_control_actions(
-                        device_id, configuration, configurations, devices_states, control_mode, gdp_event
-                    )
-                )
-            elif device_type == DeviceType.BATTERY:
-                logger.debug(f"Processing control actions for battery device: {device_id}")
-                control_actions.update(
-                    self._battery_controller.get_control_actions(
-                        device_id, configuration, configurations, devices_states, gdp_event
-                    )
-                )
-            elif device_type == DeviceType.ELECTRIC_VEHICLE:
-                logger.debug(f"Processing control actions for electric vehicle device: {device_id}")
-                control_actions.update(
-                    self._electric_vehicle_controller.get_control_actions(
-                        device_id, configuration, configurations, devices_states, gdp_event
-                    )
-                )
-            elif device_type == DeviceType.WATER_HEATER:
-                logger.debug(f"Processing control actions for water heater device: {device_id}")
-                control_actions.update(
-                    self._water_heater_controller.get_control_actions(
-                        device_id, configuration, configurations, devices_states, gdp_event
-                    )
-                )
-
             else:
-                logger.info(f"Ignoring control actions for device: {device_id}")
+                device_controller = self._device_controllers.get(device_type)
+                if device_controller is None:
+                    logger.info(f"Ignoring control actions for device: {device_id}")
+                    continue
+
+                context = ControlContext(
+                    device_id=device_id,
+                    device_configuration=configuration,
+                    all_devices_configurations=configurations,
+                    devices_states=devices_states,
+                    control_mode=control_mode,
+                    gdp_event=gdp_event,
+                    now=datetime.now().astimezone(),
+                )
+                control_actions.update(device_controller.get_control_actions(context))
 
         return control_actions
 

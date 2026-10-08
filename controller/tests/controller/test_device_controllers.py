@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from controller.optimal.base import ControlContext
-from controller.optimal.heat_pump import HeatPumpController
-from controller.optimal.thermostat import ThermostatController
-from controller.optimal.zone import ZoneController
+from controller.base import ControlContext
+from controller.devices.heat_pump import HeatPumpController
+from controller.devices.thermostat import ThermostatController
+from controller.devices.zone import ZoneController
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
 

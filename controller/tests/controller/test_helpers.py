@@ -1,6 +1,6 @@
 import pytest
 
-from controller.optimal.helpers import (
+from controller.helpers import (
     get_devices_for_zone,
     get_heat_pump_device_id,
     get_indoor_temperature,
