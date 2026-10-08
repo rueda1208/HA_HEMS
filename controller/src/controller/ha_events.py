@@ -124,6 +124,11 @@ class HomeAssistantEventListener:
         if relevant_entity_ids is not None and entity_id not in relevant_entity_ids:
             return False
 
+        if relevant_entity_ids is None:
+            entity_prefixes = ("climate.",) if self._relevant_attribute is not None else ("climate.", "weather.")
+            if not entity_id.startswith(entity_prefixes):
+                return False
+
         if self._relevant_attribute is not None:
             data = event.get("data", {})
             old_attributes = (data.get("old_state") or {}).get("attributes", {})
@@ -133,4 +138,4 @@ class HomeAssistantEventListener:
         if relevant_entity_ids is not None:
             return True
 
-        return entity_id.startswith(("climate.", "weather."))
+        return True

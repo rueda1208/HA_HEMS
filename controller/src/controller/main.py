@@ -143,7 +143,7 @@ def main() -> None:
         base_url=base_url,
         token=token,
         on_state_changed=on_ha_setpoint_changed,
-        relevant_entity_ids=set(),
+        relevant_entity_ids=None,
         relevant_attribute="temperature",
     )
 

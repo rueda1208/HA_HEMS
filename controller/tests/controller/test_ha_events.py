@@ -64,6 +64,22 @@ def test_temperature_filter_only_accepts_changed_setpoint_on_relevant_entity():
     assert not listener._is_relevant_state_changed(unrelated_entity)
 
 
+def test_temperature_filter_accepts_climate_setpoint_before_entity_list_is_loaded():
+    listener = HomeAssistantEventListener(
+        "http://ha", "token", lambda event: None, relevant_attribute="temperature"
+    )
+    changed_climate = state_changed_message("climate.sous_sol_2")
+    changed_climate["event"]["data"]["old_state"] = {"attributes": {"temperature": 21.0}}
+    changed_climate["event"]["data"]["new_state"] = {"attributes": {"temperature": 22.0}}
+
+    changed_sensor = state_changed_message("sensor.outdoor_temperature")
+    changed_sensor["event"]["data"]["old_state"] = {"attributes": {"temperature": 5.0}}
+    changed_sensor["event"]["data"]["new_state"] = {"attributes": {"temperature": 6.0}}
+
+    assert listener._is_relevant_state_changed(changed_climate)
+    assert not listener._is_relevant_state_changed(changed_sensor)
+
+
 def test_relevant_entity_ids_can_be_refreshed():
     listener = HomeAssistantEventListener(
         "http://ha", "token", lambda event: None, relevant_entity_ids={"climate.old"}
