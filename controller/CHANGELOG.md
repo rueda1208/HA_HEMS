@@ -1,3 +1,8 @@
+## 1.1.20
+
+- Add explicit API or mock-file HEMS data source selection for offline shadow testing
+- Allow disabling HEMS status metrics during offline tests
+
 ## 1.1.19
 
 - Make the event-driven controller the add-on runtime

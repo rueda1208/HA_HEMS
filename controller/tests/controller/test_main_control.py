@@ -2,7 +2,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from controller.main import _get_hems_poll_seconds, dispatch_control_actions, setpoint_entity_ids
+from controller.main import (
+    _get_hems_poll_seconds,
+    _hems_status_metrics_enabled,
+    dispatch_control_actions,
+    setpoint_entity_ids,
+)
+from controller.utils import utils
 from controller.utils.device_type import DeviceType
 
 
@@ -47,3 +53,26 @@ def test_hems_poll_seconds_defaults_to_thirty_and_accepts_environment_override(m
 
     monkeypatch.setenv("HEMS_POLL_SECONDS", "45")
     assert _get_hems_poll_seconds() == 45
+
+
+def test_hems_status_metrics_can_be_disabled_for_offline_testing(monkeypatch):
+    monkeypatch.delenv("HEMS_STATUS_METRICS_ENABLED", raising=False)
+    assert _hems_status_metrics_enabled()
+
+    monkeypatch.setenv("HEMS_STATUS_METRICS_ENABLED", "false")
+    assert not _hems_status_metrics_enabled()
+
+
+def test_hems_data_source_defaults_to_api_and_accepts_mock(monkeypatch):
+    monkeypatch.delenv("HEMS_DATA_SOURCE", raising=False)
+    assert utils.get_hems_data_source() == "api"
+
+    monkeypatch.setenv("HEMS_DATA_SOURCE", "mock")
+    assert utils.get_hems_data_source() == "mock"
+
+
+def test_hems_data_source_rejects_unknown_mode(monkeypatch):
+    monkeypatch.setenv("HEMS_DATA_SOURCE", "fixture")
+
+    with pytest.raises(ValueError, match="HEMS_DATA_SOURCE must be 'api' or 'mock'"):
+        utils.get_hems_data_source()

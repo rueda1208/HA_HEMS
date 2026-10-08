@@ -48,6 +48,10 @@ def _get_hems_poll_seconds() -> float:
     return float(os.getenv("HEMS_POLL_SECONDS", "30"))
 
 
+def _hems_status_metrics_enabled() -> bool:
+    return os.getenv("HEMS_STATUS_METRICS_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def dispatch_control_actions(
     ha_interface: HomeAssistantDeviceInterface,
     control_actions: dict[str, Any],
@@ -92,6 +96,10 @@ def main() -> None:
     allowlist = {item.strip() for item in os.getenv("CONTROL_ALLOWLIST", "").split(",") if item.strip()}
     if control_mode == "live" and not allowlist:
         raise ValueError("CONTROL_ALLOWLIST must contain at least one entity when CONTROL_MODE=live")
+    hems_data_source = utils.get_hems_data_source()
+    status_metrics_enabled = _hems_status_metrics_enabled() and hems_data_source == "api"
+    if hems_data_source == "mock":
+        logger.info("Using mock HEMS data; HEMS status metrics are disabled")
 
     # Retrieve the list of devices from Home Assistant.
     ha_interface = HomeAssistantDeviceInterface(base_url, token, allow_control=control_mode == "live")
@@ -186,17 +194,18 @@ def main() -> None:
         )
         dispatch_control_actions(ha_interface, control_actions, devices_states, control_mode, allowlist)
 
-        metric = {
-            "metrics": [
-                {
-                    "name": "home_automation",
-                    "fields": {"name": "refresh_status", "value": "success"},
-                    "tags": {"device_id": "ha_controller", "metric_type": "event"},
-                    "timestamp": int(time.time()),
-                }
-            ]
-        }
-        requests.post(f"{hems_api_base_url}/api/devices/{building_id}", json=metric, verify=False, timeout=10)
+        if status_metrics_enabled:
+            metric = {
+                "metrics": [
+                    {
+                        "name": "home_automation",
+                        "fields": {"name": "refresh_status", "value": "success"},
+                        "tags": {"device_id": "ha_controller", "metric_type": "event"},
+                        "timestamp": int(time.time()),
+                    }
+                ]
+            }
+            requests.post(f"{hems_api_base_url}/api/devices/{building_id}", json=metric, verify=False, timeout=10)
 
     try:
         event_listener.start()

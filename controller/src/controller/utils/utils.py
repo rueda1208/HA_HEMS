@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import os
 
@@ -23,6 +24,13 @@ class ControlMode(StrEnum):
     HEATING = "heating"
     COOLING = "cooling"
     OFF = "off"
+
+
+def get_hems_data_source() -> str:
+    source = os.getenv("HEMS_DATA_SOURCE", "api").strip().lower()
+    if source not in {"api", "mock"}:
+        raise ValueError("HEMS_DATA_SOURCE must be 'api' or 'mock'")
+    return source
 
 
 def setup_logging(filename: str):
@@ -58,7 +66,17 @@ def setup_logging(filename: str):
 def get_heat_pump_cop(control_mode: ControlMode, outside_temperature: float) -> float:
     hems_api_base_url = os.getenv("HEMS_API_BASE_URL", "http://hems-api.hydroquebec.lab:8500")
     heat_pump_model = os.getenv("HEAT_PUMP_MODEL", "DLCERBH18AAK")
-    heat_pump_specifications = _get_heat_pump_specifications(hems_api_base_url, heat_pump_model)
+    if get_hems_data_source() == "mock":
+        mock_specifications_path = os.getenv("MOCK_HEAT_PUMP_SPECIFICATIONS_PATH", "").strip()
+        if not mock_specifications_path:
+            raise ValueError("MOCK_HEAT_PUMP_SPECIFICATIONS_PATH is required when HEMS_DATA_SOURCE=mock")
+        if not os.path.isfile(mock_specifications_path):
+            raise FileNotFoundError(f"Mock heat-pump specifications file not found: {mock_specifications_path}")
+        logger.info("Using heat-pump specifications from local file: %s", mock_specifications_path)
+        with open(mock_specifications_path, "r", encoding="utf-8") as file_path:
+            heat_pump_specifications = json.load(file_path)
+    else:
+        heat_pump_specifications = _get_heat_pump_specifications(hems_api_base_url, heat_pump_model)
 
     if control_mode == ControlMode.COOLING:
         cop_points = heat_pump_specifications.get("cooling", {}).get("COP_points", {})
@@ -90,11 +108,13 @@ def _get_heat_pump_specifications(hems_api_base_url: str, heat_pump_model: str) 
 
 
 def retrieve_gdp_event() -> PeakEvent | None:
-    gdp_events_path = os.getenv("MOCK_GDP_EVENTS_PATH", "/share/controller/config/peak-events.json")
-
     peak_events_client: BasePeakEventClient
-
-    if os.path.exists(gdp_events_path):
+    if get_hems_data_source() == "mock":
+        gdp_events_path = os.getenv("MOCK_GDP_EVENTS_PATH", "").strip()
+        if not gdp_events_path:
+            raise ValueError("MOCK_GDP_EVENTS_PATH is required when HEMS_DATA_SOURCE=mock")
+        if not os.path.isfile(gdp_events_path):
+            raise FileNotFoundError(f"Mock GDP events file not found: {gdp_events_path}")
         logger.debug("Using GDP events from local file: %s", gdp_events_path)
         peak_events_client = MockPeakEventClient(gdp_events_path)
     else:
@@ -135,11 +155,13 @@ def retrieve_gdp_event() -> PeakEvent | None:
 
 
 def retrieve_device_configuration() -> Dict[str, Any]:
-    configuration_path = os.getenv("MOCK_CONFIGURATION_PATH")
-
     configuration_client: ConfigurationClient
-
-    if configuration_path is not None:
+    if get_hems_data_source() == "mock":
+        configuration_path = os.getenv("MOCK_CONFIGURATION_PATH", "").strip()
+        if not configuration_path:
+            raise ValueError("MOCK_CONFIGURATION_PATH is required when HEMS_DATA_SOURCE=mock")
+        if not os.path.isfile(configuration_path):
+            raise FileNotFoundError(f"Mock device configuration file not found: {configuration_path}")
         logger.debug("Using device configuration from local file: %s", configuration_path)
         configuration_client = MockConfigurationClient(configuration_path)
     else:

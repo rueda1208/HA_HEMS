@@ -18,5 +18,14 @@ The add-on options `hems_poll_seconds` (default 30 seconds), `ha_reconciliation_
 cached HEMS data. A stale snapshot suppresses control evaluation. `HEMS_POLL_SECONDS` can override the add-on poll
 setting through the process environment.
 
+The `hems_data_source` app option explicitly selects `api` (default) or `mock`. In mock mode, place JSON mock files in
+the shared `/share` folder and set `mock_configuration_path`, `mock_gdp_events_path`, and, when testing zones,
+`mock_heat_pump_specifications_path` to their container paths. The configuration file must contain the HEMS
+device-configuration object, the GDP file must contain a JSON event array (`[]` represents no events), and the
+specifications file must contain the heat-pump specifications object returned by HEMS. Mock mode requires the device
+configuration and GDP files, uses mock specifications when zone COP is evaluated, and automatically suppresses HEMS
+status posts. HA entity states and setpoint events remain live. Paths and source selection are read at process startup;
+restart the app after changing them.
+
 Live control must be enabled explicitly with `control_mode: live` and a non-empty comma-separated
 `control_allowlist` of entity IDs. Start with one test entity and verify behavior before expanding the allowlist.

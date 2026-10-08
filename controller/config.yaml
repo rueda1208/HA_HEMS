@@ -1,7 +1,7 @@
 name: "Controller"
 slug: "controller"
 description: "Expert System-Based Controller"
-version: "1.1.19"
+version: "1.1.20"
 arch:
   - aarch64
   - amd64
@@ -25,19 +25,29 @@ options:
   environment_sensor_id: "climate.heat_pump"
   weather_entity_id: "weather.home"
   heat_pump_model: "DLCERBH18AAK"
+  hems_data_source: api
   control_mode: "shadow"
   control_allowlist: ""
   hems_poll_seconds: 30
   ha_reconciliation_seconds: 900
   hems_max_snapshot_age_seconds: 300
+  mock_configuration_path: ""
+  mock_gdp_events_path: "/share/controller/config/peak-events.json"
+  mock_heat_pump_specifications_path: ""
+  hems_status_metrics_enabled: true
 schema:
   hems_api_base_url: str
   building_id: str
   environment_sensor_id: str
   weather_entity_id: str
   heat_pump_model: str
+  hems_data_source: "list(api|mock)"
   control_mode: str
   control_allowlist: str
   hems_poll_seconds: int
   ha_reconciliation_seconds: int
   hems_max_snapshot_age_seconds: int
+  mock_configuration_path: str
+  mock_gdp_events_path: str
+  mock_heat_pump_specifications_path: str
+  hems_status_metrics_enabled: bool
