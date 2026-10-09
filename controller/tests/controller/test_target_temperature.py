@@ -2,15 +2,13 @@ from datetime import datetime, timezone
 
 from controller.base import SetpointOverride
 from controller.target_temperature import TargetTemperatureSource, resolve_target_temperature
-from controller.utils.peak_event_plan import GdpPhase
+from controller.utils.peak_event_plan import GdpPhase, GdpProfileName
 from controller.utils.peak_events import PeakEvent
 
 
 def _make_event(
     start: datetime,
     end: datetime,
-    profile_name: str | None = None,
-    device_ids: frozenset[str] | None = None,
 ) -> PeakEvent:
     return PeakEvent(
         offre="tarif",
@@ -19,8 +17,6 @@ def _make_event(
         secteurclient="residentiel",
         datedebut=start,
         datefin=end,
-        profile_name=profile_name,
-        device_ids=device_ids,
     )
 
 
@@ -87,14 +83,18 @@ def test_gdp_profile_and_device_scope_are_optional_and_backward_compatible():
     selected_resolution = resolve_target_temperature(
         "climate.selected",
         configuration,
-        gdp_event=_make_event(event_start, event_end, "aggressive", frozenset({"climate.selected"})),
+        gdp_event=_make_event(event_start, event_end),
         now=now,
+        gdp_profile_name=GdpProfileName.AGGRESSIVE,
+        gdp_device_ids=frozenset({"climate.selected"}),
     )
     excluded_resolution = resolve_target_temperature(
         "climate.excluded",
         configuration,
-        gdp_event=_make_event(event_start, event_end, "aggressive", frozenset({"climate.selected"})),
+        gdp_event=_make_event(event_start, event_end),
         now=now,
+        gdp_profile_name=GdpProfileName.AGGRESSIVE,
+        gdp_device_ids=frozenset({"climate.selected"}),
     )
 
     assert legacy_resolution.value == 18.5

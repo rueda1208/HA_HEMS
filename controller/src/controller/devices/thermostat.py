@@ -28,6 +28,8 @@ class ThermostatController:
             context.gdp_event,
             context.now,
             ha_setpoint_override=context.ha_setpoint_override,
+            gdp_profile_name=context.gdp_profile_name,
+            gdp_device_ids=context.gdp_device_ids,
         )
 
         current_temperature = (

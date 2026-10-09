@@ -152,6 +152,7 @@ def resolve_target_temperature(
     now: datetime,
     gdp_profile_name: GdpProfileName = GdpProfileName.MODERATE,
     ha_setpoint_override: SetpointOverride | None = None,
+    gdp_device_ids: frozenset[str] | None = None,
 ) -> TargetTemperatureResolution:
     """Resolve schedule, GDP, and timestamped HEMS/HA manual setpoint candidates.
 
@@ -170,14 +171,8 @@ def resolve_target_temperature(
     )
 
     plan: PeakEventPlan | None = None
-    if gdp_event is not None and (gdp_event.device_ids is None or device_id in gdp_event.device_ids):
-        # TODO: Confirm whether HEMS device IDs identify zones, HA entities, or another controller-level ID.
-        profile_name = (
-            GdpProfileName(gdp_event.profile_name)
-            if gdp_event.profile_name is not None
-            else gdp_profile_name
-        )
-        profile = GdpResponseProfile.from_device_configuration(profile_name, device_configuration)
+    if gdp_event is not None and (gdp_device_ids is None or device_id in gdp_device_ids):
+        profile = GdpResponseProfile.from_device_configuration(gdp_profile_name, device_configuration)
         plan = PeakEventPlan(event=gdp_event, profile=profile)
 
     manual_overrides: list[tuple[SetpointOverride, TargetTemperatureSource]] = []

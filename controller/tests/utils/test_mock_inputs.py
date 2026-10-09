@@ -30,6 +30,8 @@ def test_realistic_mock_configuration_example_supports_timestamp_precedence(monk
 
     configuration = utils.retrieve_device_configuration()
     assert configuration["hub.hemsxx"]["mode"]["value"] == "heating"
+    assert configuration["hub.hemsxx"]["gdp_profile"]["value"] == "moderate"
+    assert configuration["hub.hemsxx"]["gdp_device_ids"]["value"] == ["climate.sous_sol_2"]
     assert configuration["climate.sous_sol_2"]["setpoint"]["source"] == "parameter"
 
     resolution = resolve_target_temperature(
@@ -56,7 +58,7 @@ def test_empty_mock_gdp_file_avoids_hems_api_request(tmp_path, monkeypatch):
     assert utils.retrieve_gdp_event() is None
 
 
-def test_mock_gdp_event_reads_optional_profile_and_device_scope(tmp_path, monkeypatch):
+def test_mock_gdp_event_contains_only_event_data(tmp_path, monkeypatch):
     now = datetime.now().astimezone()
     events_path = tmp_path / "peak-events.json"
     events_path.write_text(
@@ -69,8 +71,6 @@ def test_mock_gdp_event_reads_optional_profile_and_device_scope(tmp_path, monkey
                     "secteurclient": "residentiel",
                     "datedebut": (now + timedelta(hours=1)).isoformat(),
                     "datefin": (now + timedelta(hours=3)).isoformat(),
-                    "gdp_profile": "aggressive",
-                    "gdp_device_ids": ["climate.selected"],
                 }
             ]
         ),
@@ -82,8 +82,8 @@ def test_mock_gdp_event_reads_optional_profile_and_device_scope(tmp_path, monkey
     event = utils.retrieve_gdp_event()
 
     assert event is not None
-    assert event.profile_name == "aggressive"
-    assert event.device_ids == frozenset({"climate.selected"})
+    assert event.datedebut.date() == now.date()
+    assert event.datefin > event.datedebut
 
 
 def test_mock_source_fails_clearly_when_a_required_file_is_missing(monkeypatch):

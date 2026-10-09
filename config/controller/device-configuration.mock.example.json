@@ -3,6 +3,14 @@
     "device_type": "hub",
     "mode": {
       "value": "heating"
+    },
+    "gdp_profile": {
+      "value": "moderate"
+    },
+    "gdp_device_ids": {
+      "value": [
+        "climate.sous_sol_2"
+      ]
     }
   },
   "climate.sous_sol_2": {

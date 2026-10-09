@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Protocol
 
 from controller.utils import utils
+from controller.utils.peak_event_plan import GdpProfileName
 from controller.utils.peak_events import PeakEvent
 
 
@@ -26,6 +27,8 @@ class ControlContext:
     gdp_event: PeakEvent | None
     now: datetime
     ha_setpoint_override: SetpointOverride | None = None
+    gdp_profile_name: GdpProfileName = GdpProfileName.MODERATE
+    gdp_device_ids: frozenset[str] | None = None
 
 
 class DeviceController(Protocol):

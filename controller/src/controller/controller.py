@@ -17,6 +17,7 @@ from controller.devices import (
 )
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
+from controller.utils.peak_event_plan import GdpProfileName
 from controller.utils.peak_events import PeakEvent
 
 
@@ -43,11 +44,27 @@ class Controller:
     ) -> Dict[str, Any]:
         building_id = str(os.getenv("BUILDING_ID"))
 
-        control_mode_str = configurations.get(f"hub.{building_id.lower()}", {}).get("mode", {}).get("value", "off")
+        hub_configuration = configurations.get(f"hub.{building_id.lower()}", {})
+        control_mode_str = hub_configuration.get("mode", {}).get("value", "off")
         control_mode = self._get_control_mode_from_string(control_mode_str)
         if control_mode == utils.ControlMode.OFF:
             logger.info("Controller is in OFF mode, skipping control actions")
             return {}
+
+        # TODO: Confirm these value wrappers and whether HEMS uses controller configuration IDs here.
+        profile_value = hub_configuration.get("gdp_profile", {}).get("value", GdpProfileName.MODERATE.value)
+        try:
+            gdp_profile_name = GdpProfileName(profile_value)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"Unsupported GDP profile in hub configuration: {profile_value}") from error
+
+        raw_gdp_device_ids = hub_configuration.get("gdp_device_ids", {}).get("value")
+        if raw_gdp_device_ids is None:
+            gdp_device_ids = None
+        elif isinstance(raw_gdp_device_ids, list) and all(isinstance(device_id, str) for device_id in raw_gdp_device_ids):
+            gdp_device_ids = frozenset(raw_gdp_device_ids)
+        else:
+            raise ValueError("hub gdp_device_ids must be a list of controller configuration IDs")
 
         if gdp_event:
             logger.info("GDP event detected, adjusting control strategy accordingly")
@@ -75,6 +92,8 @@ class Controller:
                     gdp_event=gdp_event,
                     now=datetime.now().astimezone(),
                     ha_setpoint_override=(ha_setpoint_overrides or {}).get(device_id),
+                    gdp_profile_name=gdp_profile_name,
+                    gdp_device_ids=gdp_device_ids,
                 )
                 control_actions.update(device_controller.get_control_actions(context))
 
