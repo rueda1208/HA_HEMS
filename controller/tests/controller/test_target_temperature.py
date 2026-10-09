@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from controller.base import SetpointOverride
 from controller.target_temperature import TargetTemperatureSource, resolve_target_temperature
 from controller.utils.peak_event_plan import GdpPhase
 from controller.utils.peak_events import PeakEvent
@@ -110,3 +111,88 @@ def test_outside_gdp_window_returns_plain_schedule():
     assert resolution.value == 20.0
     assert resolution.source == TargetTemperatureSource.SCHEDULE
     assert resolution.gdp_phase == GdpPhase.NORMAL
+
+
+def test_newer_ha_setpoint_wins_over_older_hems_override():
+    now = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
+    configuration = {
+        "schedule": {"setpoint": {"5": {"08:00": "20"}}},
+        "setpoint": {"source": "parameter", "value": "22", "timestamp": "2026-08-28T17:30:00+00:00"},
+    }
+
+    resolution = resolve_target_temperature(
+        "dev1",
+        configuration,
+        gdp_event=None,
+        now=now,
+        ha_setpoint_override=SetpointOverride(21.5, datetime(2026, 8, 28, 17, 45, tzinfo=timezone.utc)),
+    )
+
+    assert resolution.value == 21.5
+    assert resolution.source == TargetTemperatureSource.HA_MANUAL_OVERRIDE
+
+
+def test_newer_hems_setpoint_wins_over_older_ha_setpoint():
+    now = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
+    configuration = {
+        "schedule": {"setpoint": {"5": {"08:00": "20"}}},
+        "setpoint": {"source": "parameter", "value": "22", "timestamp": "2026-08-28T17:45:00+00:00"},
+    }
+
+    resolution = resolve_target_temperature(
+        "dev1",
+        configuration,
+        gdp_event=None,
+        now=now,
+        ha_setpoint_override=SetpointOverride(21.5, datetime(2026, 8, 28, 17, 30, tzinfo=timezone.utc)),
+    )
+
+    assert resolution.value == 22.0
+    assert resolution.source == TargetTemperatureSource.MANUAL_OVERRIDE
+
+
+def test_ha_setpoint_during_gdp_window_cancels_remaining_gdp_phases():
+    now = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
+    gdp_event = _make_event(
+        datetime(2026, 8, 28, 17, 0, tzinfo=timezone.utc),
+        datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc),
+    )
+    configuration = {
+        "schedule": {"setpoint": {"5": {"08:00": "20"}}},
+        "flexibility_downward": {"value": "2.0"},
+    }
+
+    resolution = resolve_target_temperature(
+        "dev1",
+        configuration,
+        gdp_event=gdp_event,
+        now=now,
+        ha_setpoint_override=SetpointOverride(21.5, datetime(2026, 8, 28, 17, 30, tzinfo=timezone.utc)),
+    )
+
+    assert resolution.value == 21.5
+    assert resolution.source == TargetTemperatureSource.HA_MANUAL_OVERRIDE
+    assert resolution.gdp_phase == GdpPhase.REDUCTION
+
+
+def test_ha_setpoint_before_gdp_window_does_not_cancel_gdp():
+    now = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
+    gdp_event = _make_event(
+        datetime(2026, 8, 28, 17, 0, tzinfo=timezone.utc),
+        datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc),
+    )
+    configuration = {
+        "schedule": {"setpoint": {"5": {"08:00": "20"}}},
+        "flexibility_downward": {"value": "2.0"},
+    }
+
+    resolution = resolve_target_temperature(
+        "dev1",
+        configuration,
+        gdp_event=gdp_event,
+        now=now,
+        ha_setpoint_override=SetpointOverride(21.5, datetime(2026, 8, 28, 14, 30, tzinfo=timezone.utc)),
+    )
+
+    assert resolution.value == 18.0
+    assert resolution.source == TargetTemperatureSource.GDP_EVENT

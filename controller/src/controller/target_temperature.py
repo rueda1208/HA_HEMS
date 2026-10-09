@@ -7,6 +7,7 @@ from datetime import datetime, time, timedelta
 from enum import StrEnum
 from typing import Any, Dict, Tuple
 
+from controller.base import SetpointOverride
 from controller.utils.peak_event_plan import GdpPhase, GdpProfileName, GdpResponseProfile, PeakEventPlan
 from controller.utils.peak_events import PeakEvent
 from controller.utils.schedule import DeviceSchedule
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class TargetTemperatureSource(StrEnum):
     MANUAL_OVERRIDE = "manual_override"
+    HA_MANUAL_OVERRIDE = "ha_manual_override"
     GDP_EVENT = "gdp_event"
     SCHEDULE = "schedule"
 
@@ -149,12 +151,13 @@ def resolve_target_temperature(
     gdp_event: PeakEvent | None,
     now: datetime,
     gdp_profile_name: GdpProfileName = GdpProfileName.MODERATE,
+    ha_setpoint_override: SetpointOverride | None = None,
 ) -> TargetTemperatureResolution:
-    """Explicit priority chain: manual override > GDP event > schedule.
+    """Resolve schedule, GDP, and timestamped HEMS/HA manual setpoint candidates.
 
-    - Outside any active GDP window, an override wins if it is newer than the last schedule breakpoint.
-    - Inside an active GDP window (preconditioning/reduction/recovery), an override wins only if it was set
-      during that window's course, so a stale override from earlier cannot silently suppress GDP response.
+    The most recent eligible manual override wins. During a GDP window, only overrides newer than
+    the window start are eligible, so one can supersede the event's remaining phases without a stale
+    earlier setpoint suppressing GDP response.
     """
     day_of_week = (now.weekday() + 1) % 7  # Convert Monday=0 to Sunday=0, ..., Saturday=6
 
@@ -171,22 +174,41 @@ def resolve_target_temperature(
         profile = GdpResponseProfile.from_device_configuration(gdp_profile_name, device_configuration)
         plan = PeakEventPlan(event=gdp_event, profile=profile)
 
-    manual_override = _get_manual_override(device_configuration)
+    manual_overrides: list[tuple[SetpointOverride, TargetTemperatureSource]] = []
+    hems_override = _get_manual_override(device_configuration)
+    if hems_override is not None:
+        manual_overrides.append((SetpointOverride(*hems_override), TargetTemperatureSource.MANUAL_OVERRIDE))
+    if ha_setpoint_override is not None:
+        manual_overrides.append((ha_setpoint_override, TargetTemperatureSource.HA_MANUAL_OVERRIDE))
 
-    if manual_override is not None:
-        override_value, override_timestamp = manual_override
+    if plan is not None and plan.window[0] <= now < plan.window[1]:
+        eligible_overrides = [
+            candidate
+            for candidate in manual_overrides
+            if candidate[0].timestamp >= plan.window[0]
+        ]
+    else:
+        last_change = _get_last_schedule_change(device_schedule, now)
+        eligible_overrides = [
+            candidate
+            for candidate in manual_overrides
+            if last_change is None or candidate[0].timestamp > last_change
+        ]
 
-        if plan is not None and plan.window[0] <= now < plan.window[1]:
-            if override_timestamp.timestamp() >= plan.window[0].timestamp():
-                logger.debug(f"{device_id}: manual override set during GDP event window, suppressing GDP adjustment")
-                return TargetTemperatureResolution(
-                    override_value, TargetTemperatureSource.MANUAL_OVERRIDE, plan.phase_at(now)
-                )
-        else:
-            last_change = _get_last_schedule_change(device_schedule, now)
-            if last_change is None or override_timestamp.timestamp() > last_change.timestamp():
-                logger.debug(f"{device_id}: manual override detected with target temperature = {override_value} °C")
-                return TargetTemperatureResolution(override_value, TargetTemperatureSource.MANUAL_OVERRIDE)
+    if eligible_overrides:
+        override, source = max(eligible_overrides, key=lambda candidate: candidate[0].timestamp)
+        logger.debug(
+            "%s: newest manual override from %s at %s sets target to %s C",
+            device_id,
+            source,
+            override.timestamp.isoformat(),
+            override.value,
+        )
+        return TargetTemperatureResolution(
+            override.value,
+            source,
+            plan.phase_at(now) if plan is not None else GdpPhase.NORMAL,
+        )
 
     if plan is not None:
         phase = plan.phase_at(now)

@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 from sqlalchemy import Engine
 
-from controller.base import ControlContext, DeviceController
+from controller.base import ControlContext, DeviceController, SetpointOverride
 from controller.devices import (
     BatteryController,
     ElectricVehicleController,
@@ -39,6 +39,7 @@ class Controller:
         devices_states: Dict[str, Any],
         configurations: Dict[str, Any],
         gdp_event: PeakEvent | None,
+        ha_setpoint_overrides: Dict[str, SetpointOverride] | None = None,
     ) -> Dict[str, Any]:
         building_id = str(os.getenv("BUILDING_ID"))
 
@@ -73,6 +74,7 @@ class Controller:
                     control_mode=control_mode,
                     gdp_event=gdp_event,
                     now=datetime.now().astimezone(),
+                    ha_setpoint_override=(ha_setpoint_overrides or {}).get(device_id),
                 )
                 control_actions.update(device_controller.get_control_actions(context))
 

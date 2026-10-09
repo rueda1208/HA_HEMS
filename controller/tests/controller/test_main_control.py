@@ -6,6 +6,7 @@ from controller.main import (
     _get_hems_poll_seconds,
     _hems_status_metrics_enabled,
     _request_hems_refresh,
+    _setpoint_override_from_event,
     dispatch_control_actions,
     setpoint_entity_ids,
 )
@@ -89,3 +90,26 @@ def test_ha_refresh_requests_are_coalesced():
 
     assert refresh_queue.get_nowait() == "ha_setpoint"
     assert refresh_queue.empty()
+
+
+def test_ha_override_uses_actual_state_update_timestamp():
+    event = {
+        "event": {
+            "time_fired": "2026-08-28T18:00:01+00:00",
+            "data": {
+                "entity_id": "climate.sous_sol_2",
+                "new_state": {
+                    "attributes": {"temperature": 21.5},
+                    "last_updated": "2026-08-28T17:59:59+00:00",
+                },
+            },
+        }
+    }
+
+    result = _setpoint_override_from_event(event)
+
+    assert result is not None
+    entity_id, override = result
+    assert entity_id == "climate.sous_sol_2"
+    assert override.value == 21.5
+    assert override.timestamp.isoformat() == "2026-08-28T17:59:59+00:00"

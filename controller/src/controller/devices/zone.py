@@ -78,7 +78,13 @@ class ZoneController:
         if outside_temperature is None:
             raise ValueError("Outside temperature is None, cannot compute heat pump COP.")
 
-        resolution = resolve_target_temperature(zone_id, zone_configuration, context.gdp_event, context.now)
+        resolution = resolve_target_temperature(
+            zone_id,
+            zone_configuration,
+            context.gdp_event,
+            context.now,
+            ha_setpoint_override=context.ha_setpoint_override,
+        )
         target_temperature = resolution.value
 
         heat_pump_cop = utils.get_heat_pump_cop(context.control_mode, outside_temperature)

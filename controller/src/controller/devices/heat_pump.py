@@ -24,7 +24,11 @@ class HeatPumpController:
             return {}
 
         resolution = resolve_target_temperature(
-            context.device_id, context.device_configuration, context.gdp_event, context.now
+            context.device_id,
+            context.device_configuration,
+            context.gdp_event,
+            context.now,
+            ha_setpoint_override=context.ha_setpoint_override,
         )
 
         current_temperature = (

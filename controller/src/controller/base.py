@@ -9,6 +9,12 @@ from controller.utils.peak_events import PeakEvent
 
 
 @dataclass
+class SetpointOverride:
+    value: float
+    timestamp: datetime
+
+
+@dataclass
 class ControlContext:
     """Uniform inputs shared by every device controller."""
 
@@ -19,6 +25,7 @@ class ControlContext:
     control_mode: utils.ControlMode
     gdp_event: PeakEvent | None
     now: datetime
+    ha_setpoint_override: SetpointOverride | None = None
 
 
 class DeviceController(Protocol):

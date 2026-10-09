@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
 from typing import Any
@@ -11,6 +12,7 @@ import requests
 from sqlalchemy import create_engine
 
 from controller.controller import Controller
+from controller.base import SetpointOverride
 from controller.ha_events import HomeAssistantEventListener
 from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
 from controller.utils import utils
@@ -58,6 +60,24 @@ def _request_hems_refresh(refresh_queue: Queue[str], source: str) -> None:
         logger.debug("Queued HEMS refresh from %s", source)
     except Full:
         logger.debug("HEMS refresh already queued; coalescing %s trigger", source)
+
+
+def _setpoint_override_from_event(event: dict[str, Any]) -> tuple[str, SetpointOverride] | None:
+    data = event.get("event", {}).get("data", {})
+    entity_id = data.get("entity_id")
+    new_state = data.get("new_state") or {}
+    setpoint = (new_state.get("attributes") or {}).get("temperature")
+    timestamp_value = new_state.get("last_updated") or event.get("event", {}).get("time_fired")
+    if not isinstance(entity_id, str) or setpoint is None or not isinstance(timestamp_value, str):
+        return None
+
+    try:
+        timestamp = datetime.fromisoformat(timestamp_value.replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            return None
+        return entity_id, SetpointOverride(float(setpoint), timestamp)
+    except (TypeError, ValueError):
+        return None
 
 
 def dispatch_control_actions(
@@ -139,7 +159,10 @@ def main() -> None:
     hems_refresh_queue: Queue[str] = Queue(maxsize=1)
     stop_event = Event()
     snapshot_lock = Lock()
+    override_lock = Lock()
     snapshot: HemsSnapshot | None = None
+    ha_setpoint_overrides: dict[str, SetpointOverride] = {}
+    last_controller_setpoints: dict[str, float] = {}
 
     def request_control_evaluation(source: str) -> None:
         try:
@@ -154,6 +177,18 @@ def main() -> None:
         old_temperature = (data.get("old_state") or {}).get("attributes", {}).get("temperature")
         new_temperature = (data.get("new_state") or {}).get("attributes", {}).get("temperature")
         logger.info("HA setpoint changed: %s %s -> %s", entity_id, old_temperature, new_temperature)
+        candidate = _setpoint_override_from_event(event)
+        if candidate is not None:
+            changed_entity_id, override = candidate
+            with override_lock:
+                commanded_setpoint = last_controller_setpoints.get(changed_entity_id)
+                if commanded_setpoint is not None and abs(commanded_setpoint - override.value) < 0.05:
+                    last_controller_setpoints.pop(changed_entity_id, None)
+                    logger.debug("Ignoring HA event matching controller command for %s", changed_entity_id)
+                else:
+                    previous_override = ha_setpoint_overrides.get(changed_entity_id)
+                    if previous_override is None or override.timestamp > previous_override.timestamp:
+                        ha_setpoint_overrides[changed_entity_id] = override
         _request_hems_refresh(hems_refresh_queue, "ha_setpoint")
 
     event_listener = HomeAssistantEventListener(
@@ -203,12 +238,35 @@ def main() -> None:
             return
 
         devices_states = ha_interface.get_devices_states()
+        with override_lock:
+            current_ha_overrides = dict(ha_setpoint_overrides)
         control_actions = controller.get_control_actions(
             devices_states,
             configurations=current_snapshot.configurations,
             gdp_event=current_snapshot.gdp_event,
+            ha_setpoint_overrides=current_ha_overrides,
         )
-        dispatch_control_actions(ha_interface, control_actions, devices_states, control_mode, allowlist)
+
+        commanded_setpoints: dict[str, float] = {}
+        if control_mode == "live":
+            for entity_id, action in control_actions.items():
+                if entity_id not in allowlist:
+                    continue
+                commanded_setpoint = action.get("setpoint") if isinstance(action, dict) else action
+                if commanded_setpoint is not None:
+                    commanded_setpoints[entity_id] = float(commanded_setpoint)
+            with override_lock:
+                last_controller_setpoints.update(commanded_setpoints)
+
+        try:
+            dispatch_control_actions(ha_interface, control_actions, devices_states, control_mode, allowlist)
+        except Exception:
+            if commanded_setpoints:
+                with override_lock:
+                    for entity_id, value in commanded_setpoints.items():
+                        if last_controller_setpoints.get(entity_id) == value:
+                            last_controller_setpoints.pop(entity_id, None)
+            raise
 
         if status_metrics_enabled:
             metric = {

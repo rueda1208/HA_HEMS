@@ -27,5 +27,11 @@ configuration and GDP files, uses mock specifications when zone COP is evaluated
 status posts. HA entity states and setpoint events remain live. Paths and source selection are read at process startup;
 restart the app after changing them.
 
+HA thermostat setpoint events carry the entity's `last_updated` timestamp into target resolution. The controller
+compares that timestamp with a HEMS parameter-setpoint timestamp (not the poll time) and uses the newest eligible
+override. During a GDP preconditioning/reduction/recovery window, a manual override is eligible only if it changed
+after the window began; that override then supersedes the remaining phases of that event. Earlier changes do not
+cancel GDP. In live mode, events matching the controller's own requested setpoint are ignored as feedback.
+
 Live control must be enabled explicitly with `control_mode: live` and a non-empty comma-separated
 `control_allowlist` of entity IDs. Start with one test entity and verify behavior before expanding the allowlist.

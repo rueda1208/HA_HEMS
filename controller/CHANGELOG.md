@@ -1,3 +1,8 @@
+## 1.1.21
+
+- Use the newest timestamped HEMS or HA setpoint override
+- Let an in-window HA setpoint override cancel the remaining phases of the current GDP event
+
 ## 1.1.20
 
 - Add explicit API or mock-file HEMS data source selection for offline shadow testing
