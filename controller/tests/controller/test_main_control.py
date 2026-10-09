@@ -5,6 +5,7 @@ import pytest
 from controller.main import (
     _get_hems_poll_seconds,
     _hems_status_metrics_enabled,
+    _request_hems_refresh,
     dispatch_control_actions,
     setpoint_entity_ids,
 )
@@ -76,3 +77,15 @@ def test_hems_data_source_rejects_unknown_mode(monkeypatch):
 
     with pytest.raises(ValueError, match="HEMS_DATA_SOURCE must be 'api' or 'mock'"):
         utils.get_hems_data_source()
+
+
+def test_ha_refresh_requests_are_coalesced():
+    from queue import Queue
+
+    refresh_queue: Queue[str] = Queue(maxsize=1)
+
+    _request_hems_refresh(refresh_queue, "ha_setpoint")
+    _request_hems_refresh(refresh_queue, "ha_setpoint")
+
+    assert refresh_queue.get_nowait() == "ha_setpoint"
+    assert refresh_queue.empty()

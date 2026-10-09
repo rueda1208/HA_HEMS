@@ -52,6 +52,14 @@ def _hems_status_metrics_enabled() -> bool:
     return os.getenv("HEMS_STATUS_METRICS_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _request_hems_refresh(refresh_queue: Queue[str], source: str) -> None:
+    try:
+        refresh_queue.put_nowait(source)
+        logger.debug("Queued HEMS refresh from %s", source)
+    except Full:
+        logger.debug("HEMS refresh already queued; coalescing %s trigger", source)
+
+
 def dispatch_control_actions(
     ha_interface: HomeAssistantDeviceInterface,
     control_actions: dict[str, Any],
@@ -128,6 +136,7 @@ def main() -> None:
         raise ValueError("Polling, reconciliation, and snapshot-age intervals must be greater than zero")
 
     trigger_queue: Queue[None] = Queue(maxsize=1)
+    hems_refresh_queue: Queue[str] = Queue(maxsize=1)
     stop_event = Event()
     snapshot_lock = Lock()
     snapshot: HemsSnapshot | None = None
@@ -145,7 +154,7 @@ def main() -> None:
         old_temperature = (data.get("old_state") or {}).get("attributes", {}).get("temperature")
         new_temperature = (data.get("new_state") or {}).get("attributes", {}).get("temperature")
         logger.info("HA setpoint changed: %s %s -> %s", entity_id, old_temperature, new_temperature)
-        request_control_evaluation("ha_setpoint")
+        _request_hems_refresh(hems_refresh_queue, "ha_setpoint")
 
     event_listener = HomeAssistantEventListener(
         base_url=base_url,
@@ -157,7 +166,17 @@ def main() -> None:
 
     def poll_hems() -> None:
         nonlocal snapshot
+        initial_refresh = True
         while not stop_event.is_set():
+            if initial_refresh:
+                refresh_source = "startup"
+                initial_refresh = False
+            else:
+                try:
+                    refresh_source = hems_refresh_queue.get(timeout=hems_poll_seconds)
+                except Empty:
+                    refresh_source = "hems_poll"
+
             try:
                 fresh_snapshot = fetch_hems_snapshot()
                 with snapshot_lock:
@@ -167,10 +186,7 @@ def main() -> None:
             except Exception:
                 logger.exception("HEMS polling failed; retaining the last successful snapshot")
             finally:
-                request_control_evaluation("hems_poll")
-
-            if stop_event.wait(hems_poll_seconds):
-                break
+                request_control_evaluation(refresh_source)
 
     poll_thread = Thread(target=poll_hems, name="hems-poller", daemon=True)
 
