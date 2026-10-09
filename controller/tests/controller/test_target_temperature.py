@@ -6,7 +6,12 @@ from controller.utils.peak_event_plan import GdpPhase
 from controller.utils.peak_events import PeakEvent
 
 
-def _make_event(start: datetime, end: datetime) -> PeakEvent:
+def _make_event(
+    start: datetime,
+    end: datetime,
+    profile_name: str | None = None,
+    device_ids: frozenset[str] | None = None,
+) -> PeakEvent:
     return PeakEvent(
         offre="tarif",
         plagehoraire="pointe",
@@ -14,6 +19,8 @@ def _make_event(start: datetime, end: datetime) -> PeakEvent:
         secteurclient="residentiel",
         datedebut=start,
         datefin=end,
+        profile_name=profile_name,
+        device_ids=device_ids,
     )
 
 
@@ -66,6 +73,36 @@ def test_gdp_reduction_lowers_temperature():
     assert resolution.value == 18.0
     assert resolution.source == TargetTemperatureSource.GDP_EVENT
     assert resolution.gdp_phase == GdpPhase.REDUCTION
+
+
+def test_gdp_profile_and_device_scope_are_optional_and_backward_compatible():
+    now = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
+    event_start = datetime(2026, 8, 28, 17, 0, tzinfo=timezone.utc)
+    event_end = datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc)
+    configuration = {"schedule": {"setpoint": {"5": {"08:00": "20"}}}}
+
+    legacy_resolution = resolve_target_temperature(
+        "climate.legacy", configuration, gdp_event=_make_event(event_start, event_end), now=now
+    )
+    selected_resolution = resolve_target_temperature(
+        "climate.selected",
+        configuration,
+        gdp_event=_make_event(event_start, event_end, "aggressive", frozenset({"climate.selected"})),
+        now=now,
+    )
+    excluded_resolution = resolve_target_temperature(
+        "climate.excluded",
+        configuration,
+        gdp_event=_make_event(event_start, event_end, "aggressive", frozenset({"climate.selected"})),
+        now=now,
+    )
+
+    assert legacy_resolution.value == 18.5
+    assert legacy_resolution.source == TargetTemperatureSource.GDP_EVENT
+    assert selected_resolution.value == 17.0
+    assert selected_resolution.source == TargetTemperatureSource.GDP_EVENT
+    assert excluded_resolution.value == 20.0
+    assert excluded_resolution.source == TargetTemperatureSource.SCHEDULE
 
 
 def test_override_during_gdp_window_suppresses_gdp():

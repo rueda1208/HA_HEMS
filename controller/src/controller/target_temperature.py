@@ -170,8 +170,14 @@ def resolve_target_temperature(
     )
 
     plan: PeakEventPlan | None = None
-    if gdp_event is not None:
-        profile = GdpResponseProfile.from_device_configuration(gdp_profile_name, device_configuration)
+    if gdp_event is not None and (gdp_event.device_ids is None or device_id in gdp_event.device_ids):
+        # TODO: Confirm whether HEMS device IDs identify zones, HA entities, or another controller-level ID.
+        profile_name = (
+            GdpProfileName(gdp_event.profile_name)
+            if gdp_event.profile_name is not None
+            else gdp_profile_name
+        )
+        profile = GdpResponseProfile.from_device_configuration(profile_name, device_configuration)
         plan = PeakEventPlan(event=gdp_event, profile=profile)
 
     manual_overrides: list[tuple[SetpointOverride, TargetTemperatureSource]] = []

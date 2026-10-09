@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from controller.base import SetpointOverride
@@ -54,6 +54,36 @@ def test_empty_mock_gdp_file_avoids_hems_api_request(tmp_path, monkeypatch):
     monkeypatch.setenv("MOCK_GDP_EVENTS_PATH", str(events_path))
 
     assert utils.retrieve_gdp_event() is None
+
+
+def test_mock_gdp_event_reads_optional_profile_and_device_scope(tmp_path, monkeypatch):
+    now = datetime.now().astimezone()
+    events_path = tmp_path / "peak-events.json"
+    events_path.write_text(
+        json.dumps(
+            [
+                {
+                    "offre": "tarif",
+                    "plagehoraire": "pointe",
+                    "duree": "180",
+                    "secteurclient": "residentiel",
+                    "datedebut": (now + timedelta(hours=1)).isoformat(),
+                    "datefin": (now + timedelta(hours=3)).isoformat(),
+                    "gdp_profile": "aggressive",
+                    "gdp_device_ids": ["climate.selected"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HEMS_DATA_SOURCE", "mock")
+    monkeypatch.setenv("MOCK_GDP_EVENTS_PATH", str(events_path))
+
+    event = utils.retrieve_gdp_event()
+
+    assert event is not None
+    assert event.profile_name == "aggressive"
+    assert event.device_ids == frozenset({"climate.selected"})
 
 
 def test_mock_source_fails_clearly_when_a_required_file_is_missing(monkeypatch):
