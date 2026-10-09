@@ -1,6 +1,7 @@
 import logging
 import os
 from functools import lru_cache
+from datetime import datetime
 
 from typing import Any, Dict, List
 
@@ -187,7 +188,26 @@ class HomeAssistantDeviceInterface:
 
         logger.info("Control actions saved to TimescaleDB")
 
-    def _save_in_database(self, data: Dict[str, Any]) -> None:
+    def save_setpoint_state_change(
+        self, entity_id: str, old_value: float | None, new_value: float, timestamp: datetime
+    ) -> None:
+        values = []
+        if old_value is not None:
+            values.append(("setpoint_old", old_value))
+        values.append(("setpoint_new", new_value))
+
+        for name, value in values:
+            self._save_in_database(
+                data={
+                    "metric_type": "state_change",
+                    "device_id": entity_id,
+                    "name": name,
+                    "value": value,
+                },
+                timestamp=timestamp,
+            )
+
+    def _save_in_database(self, data: Dict[str, Any], timestamp: datetime | None = None) -> None:
         data_to_save = pd.DataFrame(
             data=[  # Single row of data
                 [data.get("metric_type", "unknown")]
@@ -195,7 +215,11 @@ class HomeAssistantDeviceInterface:
                 + [data.get("name", "unknown")]
                 + [data.get("value", np.nan)]
             ],
-            index=[pd.Timestamp.now(tz="UTC").replace(microsecond=0)],  # Single timestamp index
+            index=[
+                pd.Timestamp.now(tz="UTC").replace(microsecond=0)
+                if timestamp is None
+                else pd.Timestamp(timestamp).tz_convert("UTC")
+            ],
             columns=["metric_type", "device_id", "name", "value"],  # Column names
         )
 

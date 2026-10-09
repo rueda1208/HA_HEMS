@@ -6,6 +6,7 @@ from controller.main import (
     _get_hems_poll_seconds,
     _hems_status_metrics_enabled,
     _request_hems_refresh,
+    _setpoint_state_change_from_event,
     _setpoint_override_from_event,
     dispatch_control_actions,
     setpoint_entity_ids,
@@ -114,3 +115,27 @@ def test_ha_override_uses_actual_state_update_timestamp():
     assert entity_id == "climate.sous_sol_2"
     assert override.value == 21.5
     assert override.timestamp.isoformat() == "2026-08-28T17:59:59+00:00"
+
+
+def test_ha_setpoint_state_change_captures_both_values_and_event_timestamp():
+    event = {
+        "event": {
+            "time_fired": "2026-08-28T18:00:01+00:00",
+            "data": {
+                "entity_id": "climate.sous_sol_2",
+                "old_state": {"attributes": {"temperature": 20.5}},
+                "new_state": {
+                    "attributes": {"temperature": 21.5},
+                    "last_updated": "2026-08-28T17:59:59.123456+00:00",
+                },
+            },
+        }
+    }
+
+    change = _setpoint_state_change_from_event(event)
+
+    assert change is not None
+    assert change.entity_id == "climate.sous_sol_2"
+    assert change.old_value == 20.5
+    assert change.new_value == 21.5
+    assert change.timestamp.isoformat() == "2026-08-28T17:59:59.123456+00:00"

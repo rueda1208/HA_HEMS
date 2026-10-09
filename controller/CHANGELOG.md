@@ -1,3 +1,7 @@
+## 1.1.24
+
+- Record HA setpoint changes in TimescaleDB as timestamped old/new `state_change` rows
+
 ## 1.1.23
 
 - Restrict the add-on control mode option to the `shadow` and `live` choices

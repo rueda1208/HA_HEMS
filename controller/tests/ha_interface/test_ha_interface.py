@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 
@@ -125,6 +126,35 @@ def test_save_shadow_control_actions_persists_proposals_without_actuating():
             "device_id": "climate.heat_pump",
             "name": "user_pref",
             "value": 20.0,
+        },
+    ]
+
+
+def test_save_setpoint_state_change_writes_old_and_new_at_event_time():
+    interface = HomeAssistantDeviceInterface("http://ha", "token")
+    interface._save_in_database = MagicMock()
+    timestamp = datetime.fromisoformat("2026-08-28T17:59:59.123456-04:00")
+
+    interface.save_setpoint_state_change("climate.thermostat", 20.5, 21.5, timestamp)
+
+    assert [call.kwargs for call in interface._save_in_database.call_args_list] == [
+        {
+            "data": {
+                "metric_type": "state_change",
+                "device_id": "climate.thermostat",
+                "name": "setpoint_old",
+                "value": 20.5,
+            },
+            "timestamp": timestamp,
+        },
+        {
+            "data": {
+                "metric_type": "state_change",
+                "device_id": "climate.thermostat",
+                "name": "setpoint_new",
+                "value": 21.5,
+            },
+            "timestamp": timestamp,
         },
     ]
 

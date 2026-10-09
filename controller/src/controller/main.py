@@ -30,6 +30,14 @@ class HemsSnapshot:
     fetched_at: float
 
 
+@dataclass(frozen=True)
+class SetpointStateChange:
+    entity_id: str
+    old_value: float | None
+    new_value: float
+    timestamp: datetime
+
+
 def fetch_hems_snapshot() -> HemsSnapshot:
     return HemsSnapshot(
         configurations=utils.retrieve_device_configuration(),
@@ -62,22 +70,41 @@ def _request_hems_refresh(refresh_queue: Queue[str], source: str) -> None:
         logger.debug("HEMS refresh already queued; coalescing %s trigger", source)
 
 
-def _setpoint_override_from_event(event: dict[str, Any]) -> tuple[str, SetpointOverride] | None:
+def _setpoint_state_change_from_event(event: dict[str, Any]) -> SetpointStateChange | None:
     data = event.get("event", {}).get("data", {})
     entity_id = data.get("entity_id")
+    old_state = data.get("old_state") or {}
     new_state = data.get("new_state") or {}
-    setpoint = (new_state.get("attributes") or {}).get("temperature")
+    old_setpoint = (old_state.get("attributes") or {}).get("temperature")
+    new_setpoint = (new_state.get("attributes") or {}).get("temperature")
     timestamp_value = new_state.get("last_updated") or event.get("event", {}).get("time_fired")
-    if not isinstance(entity_id, str) or setpoint is None or not isinstance(timestamp_value, str):
+    if not isinstance(entity_id, str) or new_setpoint is None or not isinstance(timestamp_value, str):
         return None
 
     try:
+        new_value = float(new_setpoint)
         timestamp = datetime.fromisoformat(timestamp_value.replace("Z", "+00:00"))
         if timestamp.tzinfo is None:
             return None
-        return entity_id, SetpointOverride(float(setpoint), timestamp)
     except (TypeError, ValueError):
         return None
+
+    try:
+        old_value = float(old_setpoint) if old_setpoint is not None else None
+    except (TypeError, ValueError):
+        old_value = None
+
+    if old_value == new_value:
+        return None
+
+    return SetpointStateChange(entity_id, old_value, new_value, timestamp)
+
+
+def _setpoint_override_from_event(event: dict[str, Any]) -> tuple[str, SetpointOverride] | None:
+    change = _setpoint_state_change_from_event(event)
+    if change is None:
+        return None
+    return change.entity_id, SetpointOverride(change.new_value, change.timestamp)
 
 
 def dispatch_control_actions(
@@ -164,6 +191,7 @@ def main() -> None:
     stop_event = Event()
     snapshot_lock = Lock()
     override_lock = Lock()
+    setpoint_change_queue: Queue[SetpointStateChange | None] = Queue()
     snapshot: HemsSnapshot | None = None
     ha_setpoint_overrides: dict[str, SetpointOverride] = {}
     last_controller_setpoints: dict[str, float] = {}
@@ -181,9 +209,11 @@ def main() -> None:
         old_temperature = (data.get("old_state") or {}).get("attributes", {}).get("temperature")
         new_temperature = (data.get("new_state") or {}).get("attributes", {}).get("temperature")
         logger.info("HA setpoint changed: %s %s -> %s", entity_id, old_temperature, new_temperature)
-        candidate = _setpoint_override_from_event(event)
-        if candidate is not None:
-            changed_entity_id, override = candidate
+        state_change = _setpoint_state_change_from_event(event)
+        if state_change is not None:
+            setpoint_change_queue.put_nowait(state_change)
+            changed_entity_id = state_change.entity_id
+            override = SetpointOverride(state_change.new_value, state_change.timestamp)
             with override_lock:
                 commanded_setpoint = last_controller_setpoints.get(changed_entity_id)
                 if commanded_setpoint is not None and abs(commanded_setpoint - override.value) < 0.05:
@@ -201,6 +231,27 @@ def main() -> None:
         on_state_changed=on_ha_setpoint_changed,
         relevant_entity_ids=None,
         relevant_attribute="temperature",
+    )
+
+    def persist_setpoint_state_changes() -> None:
+        while True:
+            state_change = setpoint_change_queue.get()
+            if state_change is None:
+                return
+            try:
+                ha_interface.save_setpoint_state_change(
+                    state_change.entity_id,
+                    state_change.old_value,
+                    state_change.new_value,
+                    state_change.timestamp,
+                )
+            except Exception:
+                logger.exception("Failed to persist HA setpoint transition for %s", state_change.entity_id)
+
+    state_change_writer_thread = Thread(
+        target=persist_setpoint_state_changes,
+        name="ha-setpoint-event-writer",
+        daemon=True,
     )
 
     def poll_hems() -> None:
@@ -286,6 +337,7 @@ def main() -> None:
             requests.post(f"{hems_api_base_url}/api/devices/{building_id}", json=metric, verify=False, timeout=10)
 
     try:
+        state_change_writer_thread.start()
         event_listener.start()
         poll_thread.start()
 
@@ -305,6 +357,8 @@ def main() -> None:
     finally:
         stop_event.set()
         event_listener.stop()
+        setpoint_change_queue.put_nowait(None)
+        state_change_writer_thread.join(timeout=10)
         if poll_thread.is_alive():
             poll_thread.join(timeout=5)
 

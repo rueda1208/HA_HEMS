@@ -42,5 +42,12 @@ override. During a GDP preconditioning/reduction/recovery window, a manual overr
 after the window began; that override then supersedes the remaining phases of that event. Earlier changes do not
 cancel GDP. In live mode, events matching the controller's own requested setpoint are ignored as feedback.
 
+Each received HA setpoint transition is also written to TimescaleDB as `metric_type: state_change`, with paired
+`setpoint_old` and `setpoint_new` rows at the HA event's `last_updated` timestamp. If HA provides no numeric old value,
+only the new-value row is written. These database writes run on a worker so they do not block WebSocket event reading.
+Telegraf's periodic setpoint measurements remain enabled to provide baseline samples and coverage across listener
+disconnects or restarts. To inspect transitions, filter `space_heating` by `metric_type = 'state_change'` and order by
+`time`; the old and new rows for one transition share the same timestamp and device ID.
+
 Choose `shadow` or `live` from the add-on's constrained `control_mode` selector. Live control requires `live` and a non-empty comma-separated
 `control_allowlist` of entity IDs. Start with one test entity and verify behavior before expanding the allowlist.
