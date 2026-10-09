@@ -7,7 +7,9 @@ This add-on controls heat pump and thermostats based on preferences set using th
 ## Safe edge testing
 
 The add-on starts in `shadow` mode by default. It reads Home Assistant and HEMS data, listens for configured thermostat
-and heat-pump setpoint changes, and logs proposed actions without calling Home Assistant climate services.
+and heat-pump setpoint changes, logs proposed actions without calling Home Assistant climate services, and stores each
+proposal in TimescaleDB's `space_heating` table with `metric_type: control_shadow`. These rows are separate from
+`control` rows written for live actions.
 
 To verify event handling, change a configured climate entity's setpoint from its physical controls or the Home
 Assistant dashboard. Confirm the add-on logs `HA setpoint changed` and a subsequent `SHADOW MODE` proposal. A physical

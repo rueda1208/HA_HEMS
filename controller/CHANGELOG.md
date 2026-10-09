@@ -1,3 +1,7 @@
+## 1.1.22
+
+- Persist shadow control proposals to TimescaleDB with a distinct `control_shadow` metric type
+
 ## 1.1.21
 
 - Use the newest timestamped HEMS or HA setpoint override

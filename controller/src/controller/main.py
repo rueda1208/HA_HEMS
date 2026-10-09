@@ -89,6 +89,10 @@ def dispatch_control_actions(
 ) -> None:
     if control_mode == "shadow":
         logger.info("SHADOW MODE: proposed control actions: %s", control_actions)
+        try:
+            ha_interface.save_shadow_control_actions(control_actions)
+        except Exception:
+            logger.exception("Failed to save shadow control proposals to TimescaleDB")
         return
 
     if control_mode != "live":

@@ -21,6 +21,7 @@ def test_shadow_mode_logs_proposals_without_calling_home_assistant():
     dispatch_control_actions(ha_interface, actions, {}, "shadow", set())
 
     ha_interface.execute_control_actions.assert_not_called()
+    ha_interface.save_shadow_control_actions.assert_called_once_with(actions)
 
 
 def test_live_mode_dispatches_only_allowlisted_entities():

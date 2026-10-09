@@ -129,6 +129,31 @@ class HomeAssistantDeviceInterface:
                     }
                     self._send_action(credentials, params)
 
+    def save_shadow_control_actions(self, control_actions: Dict[str, Any]) -> None:
+        mode_values = {"off": 0, "heat": 1, "cool": 2, "auto": 3, "dry": 4, "fan_only": 5}
+
+        for entity_id, action in control_actions.items():
+            if isinstance(action, dict):
+                values = {
+                    "hvac_mode": mode_values.get(action.get("state"), np.nan),
+                    "setpoint": action.get("setpoint"),
+                    "user_pref": action.get("user_pref"),
+                }
+            else:
+                values = {"setpoint": action}
+
+            for name, value in values.items():
+                if value is None:
+                    continue
+                self._save_in_database(
+                    data={
+                        "metric_type": "control_shadow",
+                        "device_id": entity_id,
+                        "name": name,
+                        "value": value,
+                    }
+                )
+
     def _send_action(self, credentials: dict, params: dict) -> None:
         api_url = credentials["api_url"]
         headers = credentials["headers"]

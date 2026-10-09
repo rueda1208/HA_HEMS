@@ -89,6 +89,46 @@ def test_execute_heat_pump_posts_mode_and_setpoint():
     assert all(call.kwargs["timeout"] == 10 for call in post.call_args_list)
 
 
+def test_save_shadow_control_actions_persists_proposals_without_actuating():
+    interface = HomeAssistantDeviceInterface("http://ha", "token")
+    interface._save_in_database = MagicMock()
+    actions = {
+        "climate.thermostat": 21.0,
+        "climate.heat_pump": {"state": "heat", "setpoint": 22.0, "user_pref": 20.0},
+    }
+
+    with patch("controller.ha_interface.ha_interface.requests.post") as post:
+        interface.save_shadow_control_actions(actions)
+
+    post.assert_not_called()
+    assert [call.kwargs["data"] for call in interface._save_in_database.call_args_list] == [
+        {
+            "metric_type": "control_shadow",
+            "device_id": "climate.thermostat",
+            "name": "setpoint",
+            "value": 21.0,
+        },
+        {
+            "metric_type": "control_shadow",
+            "device_id": "climate.heat_pump",
+            "name": "hvac_mode",
+            "value": 1,
+        },
+        {
+            "metric_type": "control_shadow",
+            "device_id": "climate.heat_pump",
+            "name": "setpoint",
+            "value": 22.0,
+        },
+        {
+            "metric_type": "control_shadow",
+            "device_id": "climate.heat_pump",
+            "name": "user_pref",
+            "value": 20.0,
+        },
+    ]
+
+
 def test_execute_control_actions_propagates_service_failure():
     interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
     interface._save_in_database = MagicMock()
