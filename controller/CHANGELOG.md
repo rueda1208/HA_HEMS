@@ -1,3 +1,7 @@
+## 1.1.23
+
+- Restrict the add-on control mode option to the `shadow` and `live` choices
+
 ## 1.1.22
 
 - Persist shadow control proposals to TimescaleDB with a distinct `control_shadow` metric type

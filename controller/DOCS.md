@@ -42,5 +42,5 @@ override. During a GDP preconditioning/reduction/recovery window, a manual overr
 after the window began; that override then supersedes the remaining phases of that event. Earlier changes do not
 cancel GDP. In live mode, events matching the controller's own requested setpoint are ignored as feedback.
 
-Live control must be enabled explicitly with `control_mode: live` and a non-empty comma-separated
+Choose `shadow` or `live` from the add-on's constrained `control_mode` selector. Live control requires `live` and a non-empty comma-separated
 `control_allowlist` of entity IDs. Start with one test entity and verify behavior before expanding the allowlist.
