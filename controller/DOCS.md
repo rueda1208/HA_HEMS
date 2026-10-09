@@ -27,6 +27,13 @@ configuration and GDP files, uses mock specifications when zone COP is evaluated
 status posts. HA entity states and setpoint events remain live. Paths and source selection are read at process startup;
 restart the app after changing them.
 
+The runtime-shaped example is [`device-configuration.mock.example.json`](../config/controller/device-configuration.mock.example.json).
+It includes the required `hub.<lowercase building_id>` control-mode entry, a weekly thermostat schedule, a timestamped
+HEMS parameter setpoint, and GDP flexibility settings. Copy it to the shared folder and set
+`mock_configuration_path` to its container path. Replace the example building ID with the add-on's `building_id`, and
+keep the parameter timestamp representative of when that HEMS value was actually updated; refreshing the file does
+not update this timestamp. The example timestamp is fixed for illustration and should be changed for a later test.
+
 HA thermostat setpoint events carry the entity's `last_updated` timestamp into target resolution. The controller
 compares that timestamp with a HEMS parameter-setpoint timestamp (not the poll time) and uses the newest eligible
 override. During a GDP preconditioning/reduction/recovery window, a manual override is eligible only if it changed
