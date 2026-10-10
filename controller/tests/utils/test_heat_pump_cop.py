@@ -60,3 +60,19 @@ def test_heat_pump_cop_uses_mock_specification_file_without_http(tmp_path, monke
 
     assert abs(result - 3.0) < 1e-9
     get.assert_not_called()
+
+
+def test_heat_pump_cop_loads_repository_yaml_example(monkeypatch):
+    from pathlib import Path
+
+    specification_path = (
+        Path(__file__).resolve().parents[3] / "config" / "controller" / "heat-pump.example.yaml"
+    )
+    monkeypatch.setenv("HEMS_DATA_SOURCE", "mock")
+    monkeypatch.setenv("MOCK_HEAT_PUMP_SPECIFICATIONS_PATH", str(specification_path))
+
+    with patch("controller.utils.utils.requests.get") as get:
+        result = get_heat_pump_cop(ControlMode.HEATING, 0.0)
+
+    assert result > 0
+    get.assert_not_called()

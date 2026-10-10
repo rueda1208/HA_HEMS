@@ -33,6 +33,14 @@ Use the following URL to add this repository:
 https://github.com/rueda1208/HA_HEMS
 ```
 
+### Local shadow-test add-on
+
+After cloning this repository on the Home Assistant host, run `bash ./install.sh` from the repository root. The script
+prompts for a local add-on display name and slug (defaulting to `Controller Shadow Test` and
+`controller_shadow_test`), then copies the Controller add-on into `~/local_apps/<slug>` and writes that name and slug
+into its `config.yaml`. It installs mock examples under `/share/controller/config` and keeps existing shared mock files
+on reruns. Update the GDP event timestamps before testing; the checked-in sample dates are illustrative.
+
 ## Available Add-ons
 
 ### [Telegraf][addon-telegraf]

@@ -21,19 +21,19 @@ environment:
   TZ: America/Montreal
 options:
   hems_api_base_url: "http://hems-api.hydroquebec.lab:8500"
-  building_id: "HEMSXX"
+  building_id: "HEMS201"
   environment_sensor_id: "climate.heat_pump"
   weather_entity_id: "weather.home"
   heat_pump_model: "DLCERBH18AAK"
   hems_data_source: api
   control_mode: "shadow"
   control_allowlist: ""
-  hems_poll_seconds: 30
+  hems_poll_seconds: 120
   ha_reconciliation_seconds: 900
   hems_max_snapshot_age_seconds: 300
-  mock_configuration_path: ""
+  mock_configuration_path: "/share/controller/config/device-configuration.json"
   mock_gdp_events_path: "/share/controller/config/peak-events.json"
-  mock_heat_pump_specifications_path: ""
+  mock_heat_pump_specifications_path: "/share/controller/config/heat-pump.yaml"
   hems_status_metrics_enabled: true
 schema:
   hems_api_base_url: str

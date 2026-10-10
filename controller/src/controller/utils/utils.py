@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 import numpy as np
 import requests
+import yaml
 
 from controller.utils.configuration import ConfigurationClient, MockConfigurationClient, RestConfigurationClient
 from controller.utils.peak_events import BasePeakEventClient, MockPeakEventClient, PeakEvent, PeakEventClient
@@ -74,7 +75,11 @@ def get_heat_pump_cop(control_mode: ControlMode, outside_temperature: float) -> 
             raise FileNotFoundError(f"Mock heat-pump specifications file not found: {mock_specifications_path}")
         logger.info("Using heat-pump specifications from local file: %s", mock_specifications_path)
         with open(mock_specifications_path, "r", encoding="utf-8") as file_path:
-            heat_pump_specifications = json.load(file_path)
+            if mock_specifications_path.lower().endswith((".yaml", ".yml")):
+                heat_pump_specifications = yaml.safe_load(file_path)
+            else:
+                heat_pump_specifications = json.load(file_path)
+        heat_pump_specifications = heat_pump_specifications.get("heat_pump_performance_specs", heat_pump_specifications)
     else:
         heat_pump_specifications = _get_heat_pump_specifications(hems_api_base_url, heat_pump_model)
 
