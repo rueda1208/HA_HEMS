@@ -41,16 +41,12 @@ require_file() {
   fi
 }
 
-copy_example_if_missing() {
+copy_example() {
   local source="$1"
   local destination="$2"
 
-  if [[ -e "$destination" ]]; then
-    echo "Keeping existing mock file: $destination"
-  else
-    cp "$source" "$destination"
-    echo "Installed mock file: $destination"
-  fi
+  cp -f "$source" "$destination"
+  echo "Refreshed mock file: $destination"
 }
 
 require_file "$REPO_ROOT/controller/config.yaml"
@@ -88,13 +84,13 @@ if ! grep -q "^name: \"$ADDON_NAME\"" "$ADDON_CONFIG" \
   exit 1
 fi
 
-copy_example_if_missing \
+copy_example \
   "$REPO_ROOT/config/controller/device-configuration.mock.example.json" \
   "$SHARE_CONFIG_DIR/device-configuration.json"
-copy_example_if_missing \
+copy_example \
   "$REPO_ROOT/config/controller/peak-events.example.json" \
   "$SHARE_CONFIG_DIR/peak-events.json"
-copy_example_if_missing \
+copy_example \
   "$REPO_ROOT/config/controller/heat-pump.example.yaml" \
   "$SHARE_CONFIG_DIR/heat-pump.yaml"
 
