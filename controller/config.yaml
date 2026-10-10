@@ -23,7 +23,7 @@ options:
   hems_api_base_url: "http://hems-api.hydroquebec.lab:8500"
   building_id: "HEMS201"
   environment_sensor_id: "climate.heat_pump"
-  weather_entity_id: "weather.home"
+  weather_entity_id: "weather.forecast_home"
   heat_pump_model: "DLCERBH18AAK"
   hems_data_source: api
   control_mode: "shadow"

@@ -1,0 +1,808 @@
+{
+  "hub.hems201": {
+    "mode": {
+      "value": "heating",
+      "source": "parameter",
+      "timestamp": "2026-10-01T16:51:20.482458-04:00"
+    },
+    "gdp_profile": {
+      "value": "moderate"
+    },
+    "gdp_device_ids": {
+      "value": []
+    },
+    "device_type": "hub"
+  },
+  "climate.salon": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "8",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "zone.5a8feb28": {
+    "setpoint": {
+      "value": "17",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_type": "zone",
+    "display_name": {
+      "value": "test",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:10:24.472131-04:00"
+    },
+    "display_order": {
+      "value": "100",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "disabled_until": {
+      "value": "1970-01-01T00:00:00Z",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "false",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.garage": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "3",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.cuisine": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "2",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.chambre_1": {
+    "setpoint": {
+      "value": "19.5",
+      "source": "parameter",
+      "timestamp": "2026-09-30T11:21:13.370312-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "1",
+      "source": "parameter",
+      "timestamp": "2026-05-04T09:59:22.709936-04:00"
+    },
+    "linked_zone_id": {
+      "value": "zone.5a8feb28",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:50:30.116827-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.5",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:50:30.116827-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.chambre_2": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "2",
+      "source": "parameter",
+      "timestamp": "2026-05-04T09:59:22.709936-04:00"
+    },
+    "linked_zone_id": {
+      "value": "zone.5a8feb28",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:50:30.116827-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.5",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:50:30.116827-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.chambre_3": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "1",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.heat_pump": {
+    "fan_mode": {
+      "value": "fan_auto",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "schedule": {
+      "setpoint": {
+        "0": {
+          "20:00": "20"
+        },
+        "1": {
+          "20:00": "20"
+        },
+        "2": {
+          "20:00": "20"
+        },
+        "3": {
+          "20:00": "20"
+        },
+        "4": {
+          "20:00": "20"
+        },
+        "5": {
+          "20:00": "20"
+        },
+        "6": {
+          "20:00": "20"
+        }
+      }
+    },
+    "setpoint": {
+      "value": "18.0",
+      "source": "parameter",
+      "timestamp": "2026-09-30T11:10:43.22117-04:00"
+    },
+    "hvac_mode": {
+      "value": "off",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "zone_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-03-23T14:13:37.968878-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "heat_pump",
+    "display_name": {
+      "value": "Heat Pump",
+      "source": "parameter",
+      "timestamp": "2026-05-01T12:10:28.237654-04:00"
+    },
+    "display_order": {
+      "value": "0",
+      "source": "parameter",
+      "timestamp": "2026-05-04T09:59:22.709936-04:00"
+    },
+    "linked_zone_id": {
+      "value": "zone.5a8feb28",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:50:30.116827-04:00"
+    },
+    "preconditioning": {
+      "value": "true",
+      "source": "parameter",
+      "timestamp": "2026-09-30T11:32:55.781089-04:00"
+    },
+    "setpoint_offset": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "setpoint_override": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "2.0",
+      "source": "parameter",
+      "timestamp": "2026-09-30T11:32:55.7404-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "automated_control_enabled": {
+      "value": "true",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    }
+  },
+  "climate.salle_eau": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "6",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.salle_bain": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "4",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.sous_sol_1": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "9",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.sous_sol_2": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "10",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.salle_manger": {
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "thermostat",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "7",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "heat_pump_impact": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "linked_heat_pump_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    }
+  },
+  "climate.heat_pump_heat_pump": {
+    "fan_mode": {
+      "value": "fan_auto",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "setpoint": {
+      "value": "20",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "hvac_mode": {
+      "value": "off",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "zone_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-03-23T14:13:37.968878-04:00"
+    },
+    "device_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    },
+    "device_type": "heat_pump",
+    "display_name": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "display_order": {
+      "value": "5",
+      "source": "parameter",
+      "timestamp": "2026-10-06T11:07:53.895973-04:00"
+    },
+    "linked_zone_id": {
+      "value": "",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "preconditioning": {
+      "value": "false",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "setpoint_offset": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "setpoint_override": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_upward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "flexibility_downward": {
+      "value": "0.0",
+      "source": "default_parameter",
+      "timestamp": "2026-10-02T14:58:49.956795-04:00"
+    },
+    "automated_control_enabled": {
+      "value": "true",
+      "source": "default_parameter",
+      "timestamp": "2026-04-30T11:39:08.408294-04:00"
+    }
+  }
+}
