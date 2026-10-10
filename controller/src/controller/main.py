@@ -23,6 +23,13 @@ from controller.utils.peak_events import PeakEvent
 logger = logging.getLogger(__name__)
 
 
+def _parse_control_allowlist(value: str) -> set[str] | None:
+    normalized_value = value.strip()
+    if normalized_value.lower() == "all":
+        return None
+    return {entity_id.strip() for entity_id in normalized_value.split(",") if entity_id.strip()}
+
+
 @dataclass(frozen=True)
 class HemsSnapshot:
     configurations: dict[str, Any]
@@ -112,7 +119,7 @@ def dispatch_control_actions(
     control_actions: dict[str, Any],
     devices_states: dict[str, Any],
     control_mode: str,
-    allowlist: set[str],
+    allowlist: set[str] | None,
 ) -> None:
     if control_mode == "shadow":
         logger.info("SHADOW MODE: proposed control actions: %s", control_actions)
@@ -124,10 +131,14 @@ def dispatch_control_actions(
 
     if control_mode != "live":
         raise ValueError(f"Unsupported CONTROL_MODE: {control_mode}")
-    if not allowlist:
+    if allowlist is not None and not allowlist:
         raise ValueError("Live control requires a non-empty CONTROL_ALLOWLIST")
 
-    allowed_actions = {entity_id: action for entity_id, action in control_actions.items() if entity_id in allowlist}
+    allowed_actions = (
+        control_actions.copy()
+        if allowlist is None
+        else {entity_id: action for entity_id, action in control_actions.items() if entity_id in allowlist}
+    )
     blocked_entity_ids = set(control_actions) - set(allowed_actions)
     logger.info("Live actions: %s; blocked by allowlist: %s", allowed_actions, sorted(blocked_entity_ids))
     if allowed_actions:
@@ -152,9 +163,11 @@ def main() -> None:
     control_mode = os.getenv("CONTROL_MODE", "shadow").strip().lower()
     if control_mode not in {"shadow", "live"}:
         raise ValueError("CONTROL_MODE must be 'shadow' or 'live'")
-    allowlist = {item.strip() for item in os.getenv("CONTROL_ALLOWLIST", "").split(",") if item.strip()}
-    if control_mode == "live" and not allowlist:
-        raise ValueError("CONTROL_ALLOWLIST must contain at least one entity when CONTROL_MODE=live")
+    allowlist = _parse_control_allowlist(os.getenv("CONTROL_ALLOWLIST", ""))
+    if control_mode == "live" and allowlist == set():
+        raise ValueError("CONTROL_ALLOWLIST must be 'all' or contain at least one entity when CONTROL_MODE=live")
+    if control_mode == "live" and allowlist is None:
+        logger.warning("CONTROL_ALLOWLIST=all: live control is enabled for all generated actions")
     hems_data_source = utils.get_hems_data_source()
     status_metrics_enabled = _hems_status_metrics_enabled() and hems_data_source == "api"
     if hems_data_source == "mock":
@@ -305,7 +318,7 @@ def main() -> None:
         commanded_setpoints: dict[str, float] = {}
         if control_mode == "live":
             for entity_id, action in control_actions.items():
-                if entity_id not in allowlist:
+                if allowlist is not None and entity_id not in allowlist:
                     continue
                 commanded_setpoint = action.get("setpoint") if isinstance(action, dict) else action
                 if commanded_setpoint is not None:

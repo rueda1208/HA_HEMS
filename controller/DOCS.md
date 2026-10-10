@@ -49,5 +49,8 @@ Telegraf's periodic setpoint measurements remain enabled to provide baseline sam
 disconnects or restarts. To inspect transitions, filter `space_heating` by `metric_type = 'state_change'` and order by
 `time`; the old and new rows for one transition share the same timestamp and device ID.
 
-Choose `shadow` or `live` from the add-on's constrained `control_mode` selector. Live control requires `live` and a non-empty comma-separated
-`control_allowlist` of entity IDs. Start with one test entity and verify behavior before expanding the allowlist.
+Choose `shadow` or `live` from the add-on's constrained `control_mode` selector. In live mode, `control_allowlist` must
+be either a comma-separated list of entity IDs or the explicit value `all`. An empty value prevents live startup. A list
+restricts actuation to those IDs; `all` allows every action generated from the HEMS device configuration, including
+devices added later. It does not target every entity in Home Assistant, only entities present in the controller's action
+map. Treat `all` as an unrestricted live-control opt-in and verify proposals in shadow mode before enabling it.

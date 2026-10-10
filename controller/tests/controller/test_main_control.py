@@ -5,6 +5,7 @@ import pytest
 from controller.main import (
     _get_hems_poll_seconds,
     _hems_status_metrics_enabled,
+    _parse_control_allowlist,
     _request_hems_refresh,
     _setpoint_state_change_from_event,
     _setpoint_override_from_event,
@@ -35,9 +36,26 @@ def test_live_mode_dispatches_only_allowlisted_entities():
     ha_interface.execute_control_actions.assert_called_once_with({"climate.allowed": 21.0}, states)
 
 
+def test_live_mode_all_dispatches_every_generated_action():
+    ha_interface = MagicMock()
+    actions = {"climate.first": 21.0, "climate.second": 19.0}
+    states = {"climate.first": {"state": "heat"}}
+
+    dispatch_control_actions(ha_interface, actions, states, "live", None)
+
+    ha_interface.execute_control_actions.assert_called_once_with(actions, states)
+
+
 def test_live_mode_requires_a_nonempty_allowlist():
     with pytest.raises(ValueError, match="non-empty CONTROL_ALLOWLIST"):
         dispatch_control_actions(MagicMock(), {"climate.thermostat": 21.0}, {}, "live", set())
+
+
+def test_control_allowlist_parses_all_and_explicit_entities():
+    assert _parse_control_allowlist(" all ") is None
+    assert _parse_control_allowlist("ALL") is None
+    assert _parse_control_allowlist(" climate.first, climate.second ") == {"climate.first", "climate.second"}
+    assert _parse_control_allowlist("") == set()
 
 
 def test_setpoint_event_entities_include_only_thermostats_and_heat_pumps():
