@@ -16,9 +16,26 @@ class GdpPhase(StrEnum):
 
 
 class GdpProfileName(StrEnum):
-    AGGRESSIVE = "aggressive"
+    EXTREME = "extreme"
+    BOLD = "bold"
     MODERATE = "moderate"
+    AGGRESSIVE = "aggressive"
     STABLE = "stable"
+
+
+def normalize_gdp_profile_name(profile_name: str | GdpProfileName) -> GdpProfileName:
+    value = str(profile_name).strip().lower()
+    aliases = {
+        "aggressive": GdpProfileName.EXTREME,
+        "extrême": GdpProfileName.EXTREME,
+        "audacieux": GdpProfileName.BOLD,
+        "audacious": GdpProfileName.BOLD,
+        "modéré": GdpProfileName.MODERATE,
+        "stable": GdpProfileName.MODERATE,
+    }
+    if value in aliases:
+        return aliases[value]
+    return GdpProfileName(value)
 
 
 @dataclass
@@ -34,16 +51,26 @@ class GdpResponseProfile:
     ramp_margin: timedelta
 
     @classmethod
-    def from_device_configuration(cls, profile_name: GdpProfileName, device_configuration: Dict[str, Any]) -> "GdpResponseProfile":
+    def from_device_configuration(
+        cls,
+        profile_name: str | GdpProfileName,
+        device_configuration: Dict[str, Any],
+        preconditioning_override: bool | None = None,
+    ) -> "GdpResponseProfile":
         """Start from the named preset, then apply any per-device overrides already present in configuration
         (e.g. `flexibility_upward`/`flexibility_downward`/`preconditioning`), so existing device config keys keep
         working unchanged for devices that don't opt into a named profile.
         """
+        profile_name = normalize_gdp_profile_name(profile_name)
         preset = GDP_PROFILE_PRESETS[profile_name]
 
-        preconditioning_enabled = device_configuration.get("preconditioning", {}).get("value")
-        flexibility_upward = device_configuration.get("flexibility_upward", {}).get("value")
-        flexibility_downward = device_configuration.get("flexibility_downward", {}).get("value")
+        preconditioning_enabled = (
+            preconditioning_override
+            if preconditioning_override is not None
+            else _configured_parameter_value(device_configuration, "preconditioning")
+        )
+        flexibility_upward = _configured_parameter_value(device_configuration, "flexibility_upward")
+        flexibility_downward = _configured_parameter_value(device_configuration, "flexibility_downward")
 
         return cls(
             name=preset.name,
@@ -63,13 +90,22 @@ class GdpResponseProfile:
 
 
 GDP_PROFILE_PRESETS: Dict[GdpProfileName, GdpResponseProfile] = {
-    GdpProfileName.AGGRESSIVE: GdpResponseProfile(
-        name=GdpProfileName.AGGRESSIVE,
+    GdpProfileName.EXTREME: GdpResponseProfile(
+        name=GdpProfileName.EXTREME,
         preconditioning_enabled=True,
         preconditioning_lead_time=timedelta(hours=3),
         recovery_duration=timedelta(hours=2),
         flexibility_upward=2.0,
-        flexibility_downward=3.0,
+        flexibility_downward=6.0,
+        ramp_margin=timedelta(minutes=15),
+    ),
+    GdpProfileName.BOLD: GdpResponseProfile(
+        name=GdpProfileName.BOLD,
+        preconditioning_enabled=True,
+        preconditioning_lead_time=timedelta(hours=2),
+        recovery_duration=timedelta(hours=1),
+        flexibility_upward=1.0,
+        flexibility_downward=4.0,
         ramp_margin=timedelta(minutes=15),
     ),
     GdpProfileName.MODERATE: GdpResponseProfile(
@@ -78,19 +114,17 @@ GDP_PROFILE_PRESETS: Dict[GdpProfileName, GdpResponseProfile] = {
         preconditioning_lead_time=timedelta(hours=2),
         recovery_duration=timedelta(hours=1),
         flexibility_upward=1.0,
-        flexibility_downward=1.5,
-        ramp_margin=timedelta(minutes=15),
-    ),
-    GdpProfileName.STABLE: GdpResponseProfile(
-        name=GdpProfileName.STABLE,
-        preconditioning_enabled=False,
-        preconditioning_lead_time=timedelta(0),
-        recovery_duration=timedelta(minutes=30),
-        flexibility_upward=0.0,
-        flexibility_downward=0.5,
+        flexibility_downward=3.0,
         ramp_margin=timedelta(minutes=15),
     ),
 }
+
+
+def _configured_parameter_value(device_configuration: Dict[str, Any], key: str) -> Any:
+    setting = device_configuration.get(key)
+    if not isinstance(setting, dict) or setting.get("source") == "default_parameter":
+        return None
+    return setting.get("value")
 
 
 @dataclass

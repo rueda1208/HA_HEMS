@@ -31,7 +31,24 @@ restart the app after changing them.
 
 The runtime-shaped example is [`device-configuration.mock.example.json`](../config/controller/device-configuration.mock.example.json).
 It includes the required `hub.<lowercase building_id>` control-mode entry, a weekly thermostat schedule, a timestamped
-HEMS parameter setpoint, and GDP flexibility settings. Copy it to the shared folder and set
+HEMS parameter setpoint, and GDP settings. The hub's `gdp_profile.value` accepts `extreme`, `bold`, or `moderate`;
+their default temperature reductions are 6°C, 4°C, and 3°C below schedule, respectively. Each selected device in
+`gdp_device_ids.value` is an object with its controller configuration ID and its own preconditioning choice, for example:
+
+```json
+"gdp_device_ids": {
+  "value": [
+    {"device_id": "climate.sous_sol_2", "preconditioning": true},
+    {"device_id": "climate.salon", "preconditioning": false}
+  ]
+}
+```
+
+An empty list selects no GDP-controlled devices; `null` or an omitted field retains the legacy behavior of applying GDP
+to all devices. Legacy lists of string IDs are still accepted, but do not carry per-device preconditioning choices. A
+per-device `preconditioning` boolean in a GDP entry overrides that device's own `preconditioning` setting for this GDP
+selection. Explicit per-device `flexibility_upward` and `flexibility_downward` values with
+`source: "parameter"` override preset offsets; `default_parameter` values do not. Copy the example to the shared folder and set
 `mock_configuration_path` to its container path. Replace the example building ID with the add-on's `building_id`, and
 keep the parameter timestamp representative of when that HEMS value was actually updated; refreshing the file does
 not update this timestamp. The example timestamp is fixed for illustration and should be changed for a later test.

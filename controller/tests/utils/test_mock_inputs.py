@@ -20,19 +20,21 @@ def test_device_configuration_can_be_loaded_from_mock_json(tmp_path, monkeypatch
     assert utils.retrieve_device_configuration() == configuration
 
 
-def test_realistic_mock_configuration_example_supports_timestamp_precedence(monkeypatch):
+def test_realistic_mock_configuration_example_supports_gdp_selection_and_manual_override(monkeypatch):
     configuration_path = (
         Path(__file__).resolve().parents[3] / "config" / "controller" / "device-configuration.mock.example.json"
     )
     monkeypatch.setenv("HEMS_DATA_SOURCE", "mock")
     monkeypatch.setenv("MOCK_CONFIGURATION_PATH", str(configuration_path))
-    monkeypatch.setenv("BUILDING_ID", "HEMSXX")
+    monkeypatch.setenv("BUILDING_ID", "HEMS201")
 
     configuration = utils.retrieve_device_configuration()
-    assert configuration["hub.hemsxx"]["mode"]["value"] == "heating"
-    assert configuration["hub.hemsxx"]["gdp_profile"]["value"] == "moderate"
-    assert configuration["hub.hemsxx"]["gdp_device_ids"]["value"] == ["climate.sous_sol_2"]
-    assert configuration["climate.sous_sol_2"]["setpoint"]["source"] == "parameter"
+    assert configuration["hub.hems201"]["mode"]["value"] == "heating"
+    assert configuration["hub.hems201"]["gdp_profile"]["value"] == "moderate"
+    assert configuration["hub.hems201"]["gdp_device_ids"]["value"] == [
+        {"device_id": "climate.sous_sol_2", "preconditioning": True}
+    ]
+    assert configuration["climate.sous_sol_2"]["setpoint"]["source"] == "default_parameter"
 
     resolution = resolve_target_temperature(
         "climate.sous_sol_2",

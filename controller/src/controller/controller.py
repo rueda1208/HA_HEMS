@@ -17,11 +17,44 @@ from controller.devices import (
 )
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
-from controller.utils.peak_event_plan import GdpProfileName
+from controller.utils.peak_event_plan import GdpProfileName, normalize_gdp_profile_name
 from controller.utils.peak_events import PeakEvent
 
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_gdp_device_selection(
+    raw_devices: Any,
+) -> tuple[frozenset[str] | None, dict[str, bool]]:
+    if raw_devices is None:
+        return None, {}
+    if not isinstance(raw_devices, list):
+        raise ValueError("hub gdp_device_ids must be a list")
+
+    device_ids: set[str] = set()
+    preconditioning_by_device: dict[str, bool] = {}
+    for index, item in enumerate(raw_devices):
+        if isinstance(item, str) and item:
+            device_id = item
+        elif isinstance(item, dict):
+            device_id = item.get("device_id")
+            preconditioning = item.get("preconditioning")
+            if not isinstance(device_id, str) or not device_id:
+                raise ValueError(f"hub gdp_device_ids[{index}].device_id must be a non-empty string")
+            if not isinstance(preconditioning, bool):
+                raise ValueError(f"hub gdp_device_ids[{index}].preconditioning must be a boolean")
+            preconditioning_by_device[device_id] = preconditioning
+        else:
+            raise ValueError(
+                f"hub gdp_device_ids[{index}] must be a device ID string or an object with "
+                "device_id and boolean preconditioning fields"
+            )
+        if device_id in device_ids:
+            raise ValueError(f"hub gdp_device_ids contains duplicate device ID {device_id!r}")
+        device_ids.add(device_id)
+
+    return frozenset(device_ids), preconditioning_by_device
 
 
 class Controller:
@@ -54,17 +87,12 @@ class Controller:
         # TODO: Confirm these value wrappers and whether HEMS uses controller configuration IDs here.
         profile_value = hub_configuration.get("gdp_profile", {}).get("value", GdpProfileName.MODERATE.value)
         try:
-            gdp_profile_name = GdpProfileName(profile_value)
+            gdp_profile_name = normalize_gdp_profile_name(profile_value)
         except (TypeError, ValueError) as error:
             raise ValueError(f"Unsupported GDP profile in hub configuration: {profile_value}") from error
 
         raw_gdp_device_ids = hub_configuration.get("gdp_device_ids", {}).get("value")
-        if raw_gdp_device_ids is None:
-            gdp_device_ids = None
-        elif isinstance(raw_gdp_device_ids, list) and all(isinstance(device_id, str) for device_id in raw_gdp_device_ids):
-            gdp_device_ids = frozenset(raw_gdp_device_ids)
-        else:
-            raise ValueError("hub gdp_device_ids must be a list of controller configuration IDs")
+        gdp_device_ids, gdp_preconditioning_by_device = _parse_gdp_device_selection(raw_gdp_device_ids)
 
         if gdp_event:
             logger.info("GDP event detected, adjusting control strategy accordingly")
@@ -94,6 +122,7 @@ class Controller:
                     ha_setpoint_override=(ha_setpoint_overrides or {}).get(device_id),
                     gdp_profile_name=gdp_profile_name,
                     gdp_device_ids=gdp_device_ids,
+                    gdp_preconditioning_by_device=gdp_preconditioning_by_device,
                 )
                 control_actions.update(device_controller.get_control_actions(context))
 

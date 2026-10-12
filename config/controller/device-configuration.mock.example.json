@@ -9,7 +9,12 @@
       "value": "moderate"
     },
     "gdp_device_ids": {
-      "value": []
+      "value": [
+        {
+          "device_id": "climate.sous_sol_2",
+          "preconditioning": true
+        }
+      ]
     },
     "device_type": "hub"
   },

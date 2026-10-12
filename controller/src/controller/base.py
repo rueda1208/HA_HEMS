@@ -29,6 +29,7 @@ class ControlContext:
     ha_setpoint_override: SetpointOverride | None = None
     gdp_profile_name: GdpProfileName = GdpProfileName.MODERATE
     gdp_device_ids: frozenset[str] | None = None
+    gdp_preconditioning_by_device: Dict[str, bool] | None = None
 
 
 class DeviceController(Protocol):

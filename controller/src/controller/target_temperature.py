@@ -153,6 +153,7 @@ def resolve_target_temperature(
     gdp_profile_name: GdpProfileName = GdpProfileName.MODERATE,
     ha_setpoint_override: SetpointOverride | None = None,
     gdp_device_ids: frozenset[str] | None = None,
+    gdp_preconditioning_by_device: Dict[str, bool] | None = None,
 ) -> TargetTemperatureResolution:
     """Resolve schedule, GDP, and timestamped HEMS/HA manual setpoint candidates.
 
@@ -172,7 +173,11 @@ def resolve_target_temperature(
 
     plan: PeakEventPlan | None = None
     if gdp_event is not None and (gdp_device_ids is None or device_id in gdp_device_ids):
-        profile = GdpResponseProfile.from_device_configuration(gdp_profile_name, device_configuration)
+        profile = GdpResponseProfile.from_device_configuration(
+            gdp_profile_name,
+            device_configuration,
+            preconditioning_override=(gdp_preconditioning_by_device or {}).get(device_id),
+        )
         plan = PeakEventPlan(event=gdp_event, profile=profile)
 
     manual_overrides: list[tuple[SetpointOverride, TargetTemperatureSource]] = []

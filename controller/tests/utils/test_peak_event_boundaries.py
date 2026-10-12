@@ -27,11 +27,13 @@ def test_window_matches_phase_boundaries(moderate_plan):
     assert moderate_plan.window == (START - timedelta(hours=2), END + timedelta(hours=1))
 
 
-def test_stable_profile_has_no_preconditioning():
-    profile = GdpResponseProfile.from_device_configuration(GdpProfileName.STABLE, {})
+def test_device_can_disable_profile_preconditioning():
+    profile = GdpResponseProfile.from_device_configuration(
+        GdpProfileName.MODERATE, {}, preconditioning_override=False
+    )
     plan = PeakEventPlan(make_peak_event(START, END), profile)
 
     assert plan.phase_at(START - timedelta(minutes=1)) == GdpPhase.NORMAL
-    assert plan.window == (START, END + timedelta(minutes=30))
-    assert plan.phase_at(END + timedelta(minutes=29)) == GdpPhase.RECOVERY
-    assert plan.phase_at(END + timedelta(minutes=30)) == GdpPhase.NORMAL
+    assert plan.window == (START, END + timedelta(hours=1))
+    assert plan.phase_at(END + timedelta(minutes=59)) == GdpPhase.RECOVERY
+    assert plan.phase_at(END + timedelta(hours=1)) == GdpPhase.NORMAL

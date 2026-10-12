@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from controller.base import SetpointOverride
 from controller.target_temperature import TargetTemperatureSource, resolve_target_temperature
@@ -97,12 +97,45 @@ def test_gdp_profile_and_device_scope_are_optional_and_backward_compatible():
         gdp_device_ids=frozenset({"climate.selected"}),
     )
 
-    assert legacy_resolution.value == 18.5
+    assert legacy_resolution.value == 17.0
     assert legacy_resolution.source == TargetTemperatureSource.GDP_EVENT
-    assert selected_resolution.value == 17.0
+    assert selected_resolution.value == 14.0
     assert selected_resolution.source == TargetTemperatureSource.GDP_EVENT
     assert excluded_resolution.value == 20.0
     assert excluded_resolution.source == TargetTemperatureSource.SCHEDULE
+
+
+def test_gdp_device_entry_controls_preconditioning_per_device():
+    event_start = datetime(2026, 8, 28, 17, 0, tzinfo=timezone.utc)
+    event_end = datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc)
+    now = event_start - timedelta(hours=1)
+    event = _make_event(event_start, event_end)
+    configuration = {
+        "schedule": {"setpoint": {"5": {"08:00": "20"}}},
+        "preconditioning": {"value": "false"},
+    }
+
+    enabled = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=now,
+        gdp_device_ids=frozenset({"climate.device"}),
+        gdp_preconditioning_by_device={"climate.device": True},
+    )
+    disabled = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=now,
+        gdp_device_ids=frozenset({"climate.device"}),
+        gdp_preconditioning_by_device={"climate.device": False},
+    )
+
+    assert enabled.gdp_phase == GdpPhase.PRECONDITIONING
+    assert enabled.value > 20.0
+    assert disabled.gdp_phase == GdpPhase.NORMAL
+    assert disabled.value == 20.0
 
 
 def test_override_during_gdp_window_suppresses_gdp():
