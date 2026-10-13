@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from controller.base import SetpointOverride
 from controller.target_temperature import TargetTemperatureSource, resolve_target_temperature
 from controller.utils.peak_event_plan import GdpPhase, GdpProfileName
@@ -69,6 +71,123 @@ def test_gdp_reduction_lowers_temperature():
     assert resolution.value == 18.0
     assert resolution.source == TargetTemperatureSource.GDP_EVENT
     assert resolution.gdp_phase == GdpPhase.REDUCTION
+
+
+@pytest.mark.parametrize(
+    ("profile", "reduction", "expected_recovery_midpoint"),
+    [
+        (GdpProfileName.MODERATE, 17.0, 18.5),
+        (GdpProfileName.BOLD, 16.0, 18.0),
+    ],
+)
+def test_smoother_profiles_use_cosine_ramps(profile, reduction, expected_recovery_midpoint):
+    event_start = datetime(2026, 8, 28, 16, 0, tzinfo=timezone.utc)
+    event_end = datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc)
+    event = _make_event(event_start, event_end)
+    configuration = {"schedule": {"setpoint": {"5": {"08:00": "20"}}}}
+
+    preconditioning = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=datetime(2026, 8, 28, 14, 26, 15, tzinfo=timezone.utc),
+        gdp_profile_name=profile,
+    )
+    reduction_midpoint = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=event_start + timedelta(minutes=7, seconds=30),
+        gdp_profile_name=profile,
+    )
+    reduction_target = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=event_start + timedelta(minutes=15),
+        gdp_profile_name=profile,
+    )
+    recovery_resolution = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=event_end + timedelta(minutes=22, seconds=30),
+        gdp_profile_name=profile,
+    )
+
+    assert preconditioning.value == 20.0
+    assert reduction_midpoint.value == round((21.0 + reduction) / 2, 2)
+    assert reduction_target.value == reduction
+    assert recovery_resolution.value == expected_recovery_midpoint
+    assert all(
+        resolution.value * 2 == round(resolution.value * 2)
+        for resolution in (preconditioning, reduction_midpoint, reduction_target, recovery_resolution)
+    )
+
+
+def test_gdp_target_rounds_half_degree_ties_away_from_zero():
+    event = _make_event(
+        datetime(2026, 8, 28, 16, 0, tzinfo=timezone.utc),
+        datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc),
+    )
+    configuration = {
+        "schedule": {"setpoint": {"5": {"08:00": "20.25"}}},
+        "flexibility_downward": {"value": "0.0", "source": "parameter"},
+    }
+
+    resolution = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc),
+        gdp_profile_name=GdpProfileName.MODERATE,
+    )
+
+    assert resolution.value == 20.5
+    assert resolution.source == TargetTemperatureSource.GDP_EVENT
+
+
+def test_schedule_target_is_not_quantized_to_gdp_increment():
+    now = datetime(2026, 8, 28, 18, 0, tzinfo=timezone.utc)
+    configuration = {"schedule": {"setpoint": {"5": {"08:00": "20.25"}}}}
+
+    resolution = resolve_target_temperature("climate.device", configuration, gdp_event=None, now=now)
+
+    assert resolution.value == 20.25
+    assert resolution.source == TargetTemperatureSource.SCHEDULE
+
+
+def test_extreme_profile_uses_step_transitions():
+    event_start = datetime(2026, 8, 28, 16, 0, tzinfo=timezone.utc)
+    event_end = datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc)
+    event = _make_event(event_start, event_end)
+    configuration = {"schedule": {"setpoint": {"5": {"08:00": "20"}}}}
+
+    preconditioning_start = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=event_start - timedelta(hours=3),
+        gdp_profile_name=GdpProfileName.EXTREME,
+    )
+    reduction_start = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=event_start,
+        gdp_profile_name=GdpProfileName.EXTREME,
+    )
+    recovery_start = resolve_target_temperature(
+        "climate.device",
+        configuration,
+        gdp_event=event,
+        now=event_end,
+        gdp_profile_name=GdpProfileName.EXTREME,
+    )
+
+    assert preconditioning_start.value == 22.0
+    assert reduction_start.value == 14.0
+    assert recovery_start.value == 20.0
 
 
 def test_gdp_profile_and_device_scope_are_optional_and_backward_compatible():

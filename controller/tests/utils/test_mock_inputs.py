@@ -31,9 +31,7 @@ def test_realistic_mock_configuration_example_supports_gdp_selection_and_manual_
     configuration = utils.retrieve_device_configuration()
     assert configuration["hub.hems201"]["mode"]["value"] == "heating"
     assert configuration["hub.hems201"]["gdp_profile"]["value"] == "moderate"
-    assert configuration["hub.hems201"]["gdp_device_ids"]["value"] == [
-        {"device_id": "climate.sous_sol_2", "preconditioning": True}
-    ]
+    assert configuration["hub.hems201"]["gdp_device_ids"]["value"] is None
     assert configuration["climate.sous_sol_2"]["setpoint"]["source"] == "default_parameter"
 
     resolution = resolve_target_temperature(

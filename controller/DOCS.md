@@ -29,11 +29,23 @@ configuration and GDP files, uses mock specifications when zone COP is evaluated
 status posts. HA entity states and setpoint events remain live. Paths and source selection are read at process startup;
 restart the app after changing them.
 
+On each successful configuration refresh, info logs explicitly identify IHD-side temperature setpoints loaded,
+changed, or cleared, including their HEMS timestamps. Updates to `default_parameter` setpoints are not logged as
+IHD/parameter overrides.
+
 The runtime-shaped example is [`device-configuration.mock.example.json`](../config/controller/device-configuration.mock.example.json).
 It includes the required `hub.<lowercase building_id>` control-mode entry, a weekly thermostat schedule, a timestamped
 HEMS parameter setpoint, and GDP settings. The hub's `gdp_profile.value` accepts `extreme`, `bold`, or `moderate`;
-their default temperature reductions are 6°C, 4°C, and 3°C below schedule, respectively. Each selected device in
-`gdp_device_ids.value` is an object with its controller configuration ID and its own preconditioning choice, for example:
+their default temperature reductions are 6°C, 4°C, and 3°C below schedule, respectively. Extreme uses step-like
+transitions. Bold and Moderate use cosine-eased S-curves: the reduction entry is eased over the first 15 minutes,
+preconditioning reaches its target 15 minutes before the event, and recovery starts from the reduced target. The
+recovery ramp likewise reaches its schedule target 15 minutes before the recovery phase ends. GDP-phase setpoints are
+rounded to the nearest 0.5°C to match the supported thermostat increment; schedule-only and manual-override setpoints
+are not quantized by this GDP rule.
+
+When `gdp_device_ids.value` is omitted or `null`, the controller selects all detected thermostat, heat-pump, and zone
+temperature controllers for GDP; profile preconditioning is enabled by default. To customize the selection, each entry
+is an object with its controller configuration ID and its own preconditioning choice, for example:
 
 ```json
 "gdp_device_ids": {
@@ -44,8 +56,8 @@ their default temperature reductions are 6°C, 4°C, and 3°C below schedule, re
 }
 ```
 
-An empty list selects no GDP-controlled devices; `null` or an omitted field retains the legacy behavior of applying GDP
-to all devices. Legacy lists of string IDs are still accepted, but do not carry per-device preconditioning choices. A
+An empty list selects no GDP-controlled devices. Legacy lists of string IDs are still accepted, but do not carry
+per-device preconditioning choices. A
 per-device `preconditioning` boolean in a GDP entry overrides that device's own `preconditioning` setting for this GDP
 selection. Explicit per-device `flexibility_upward` and `flexibility_downward` values with
 `source: "parameter"` override preset offsets; `default_parameter` values do not. Copy the example to the shared folder and set
@@ -71,3 +83,42 @@ be either a comma-separated list of entity IDs or the explicit value `all`. An e
 restricts actuation to those IDs; `all` allows every action generated from the HEMS device configuration, including
 devices added later. It does not target every entity in Home Assistant, only entities present in the controller's action
 map. Treat `all` as an unrestricted live-control opt-in and verify proposals in shadow mode before enabling it.
+
+## Persistent local controller
+
+From the repository root, start the local controller with editable play files:
+
+```bash
+export BASE_HA_URL="http://hems201.hydroquebec.lab:8123"
+./controller/local_supervisor_run.sh --persistent
+```
+
+If `SUPERVISOR_TOKEN` is not set, the launcher reads `secrets/ha_long_live.txt` when present, or prompts for the token.
+Alternatively set `SUPERVISOR_TOKEN_FILE` to a readable token file. Token files contain only the raw token and are
+mounted read-only into the container. Persistent mode defaults to `examples/runtime/config-play.json` and
+`examples/runtime/gdp-play.json`, bind-mounts their source directories read-only, and starts the container as
+`ha-hems-controller-local` with Docker's `unless-stopped` restart policy.
+`examples/runtime/` is ignored by Git so the play files remain local. Edit either JSON file on the host; the controller
+reopens them on HEMS snapshot refresh (the current local add-on setting is 120 seconds), without rebuilding the image
+or restarting the container. Keep each file valid JSON while editing.
+
+The local launcher always uses mock HEMS data and defaults to `shadow`, which logs proposals rather than changing HA
+setpoints. For code changes or startup-environment changes, remove and recreate the persistent container; the launcher
+builds the image on each start:
+
+```bash
+docker rm -f ha-hems-controller-local
+./controller/local_supervisor_run.sh --persistent
+```
+
+Live control is opt-in. To launch with live control, set an explicit entity allowlist; this sends setpoints to those
+real Home Assistant entities:
+
+```bash
+LOCAL_CONTROL_MODE=live \
+LOCAL_CONTROL_ALLOWLIST=climate.salon \
+./controller/local_supervisor_run.sh --persistent
+```
+
+The running process reads its control mode at startup, so changing modes requires recreating the container. Inspect logs
+with `docker logs -f ha-hems-controller-local` and stop it with `docker stop ha-hems-controller-local`.

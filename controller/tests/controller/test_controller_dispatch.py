@@ -37,23 +37,37 @@ def test_dispatches_to_registered_controller_and_skips_hub_and_unknown(monkeypat
     assert context.gdp_preconditioning_by_device == {"climate.thermostat_1": True}
 
 
-def test_legacy_hub_configuration_defaults_to_moderate_profile_and_all_devices(monkeypatch):
+def test_missing_gdp_device_ids_defaults_to_detected_temperature_entities(monkeypatch):
     monkeypatch.setenv("BUILDING_ID", "TestBuilding")
     configurations = {
         "hub.testbuilding": {"device_type": DeviceType.HUB, "mode": {"value": "heating"}},
         "climate.thermostat_1": {"device_type": DeviceType.THERMOSTAT},
+        "climate.heat_pump": {"device_type": DeviceType.HEAT_PUMP},
+        "zone.living_room": {"device_type": DeviceType.ZONE},
     }
     controller = Controller(db_engine=MagicMock())
     fake_thermostat_controller = MagicMock()
     fake_thermostat_controller.get_control_actions.return_value = {}
+    fake_heat_pump_controller = MagicMock()
+    fake_heat_pump_controller.get_control_actions.return_value = {}
+    fake_zone_controller = MagicMock()
+    fake_zone_controller.get_control_actions.return_value = {}
     controller._device_controllers[DeviceType.THERMOSTAT] = fake_thermostat_controller
+    controller._device_controllers[DeviceType.HEAT_PUMP] = fake_heat_pump_controller
+    controller._device_controllers[DeviceType.ZONE] = fake_zone_controller
 
     controller.get_control_actions(devices_states={}, configurations=configurations, gdp_event=None)
 
-    context = fake_thermostat_controller.get_control_actions.call_args.args[0]
-    assert context.gdp_profile_name == GdpProfileName.MODERATE
-    assert context.gdp_device_ids is None
-    assert context.gdp_preconditioning_by_device == {}
+    expected_device_ids = frozenset({"climate.thermostat_1", "climate.heat_pump", "zone.living_room"})
+    for fake_device_controller in (
+        fake_thermostat_controller,
+        fake_heat_pump_controller,
+        fake_zone_controller,
+    ):
+        context = fake_device_controller.get_control_actions.call_args.args[0]
+        assert context.gdp_profile_name == GdpProfileName.MODERATE
+        assert context.gdp_device_ids == expected_device_ids
+        assert context.gdp_preconditioning_by_device == {}
 
 
 def test_dispatch_accepts_legacy_string_gdp_device_ids(monkeypatch):

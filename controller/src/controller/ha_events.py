@@ -12,7 +12,6 @@ import websocket
 
 logger = logging.getLogger(__name__)
 
-
 class HomeAssistantEventListener:
     """Listen for Home Assistant state changes and notify a callback.
 

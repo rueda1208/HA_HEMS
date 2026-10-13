@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from controller.main import (
     _get_hems_poll_seconds,
     _hems_status_metrics_enabled,
+    _log_parameter_setpoint_updates,
     _parse_control_allowlist,
     _request_hems_refresh,
     _setpoint_state_change_from_event,
@@ -14,6 +16,87 @@ from controller.main import (
 )
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
+
+
+def test_initial_parameter_setpoints_are_logged(caplog):
+    configurations = {
+        "climate.salon": {
+            "setpoint": {
+                "value": "20",
+                "source": "parameter",
+                "timestamp": "2026-10-12T23:53:49-04:00",
+            }
+        },
+        "climate.cuisine": {
+            "setpoint": {
+                "value": "20",
+                "source": "default_parameter",
+                "timestamp": "2026-10-02T23:53:49-04:00",
+            }
+        },
+    }
+
+    with caplog.at_level(logging.INFO, logger="controller.main"):
+        _log_parameter_setpoint_updates(None, configurations)
+
+    assert "IHD-side HEMS parameter temperature setpoint loaded for climate.salon: 20 C" in caplog.text
+    assert "climate.cuisine" not in caplog.text
+
+
+def test_parameter_setpoint_transition_from_default_is_logged(caplog):
+    previous_configurations = {
+        "climate.salon": {
+            "setpoint": {
+                "value": "20",
+                "source": "default_parameter",
+                "timestamp": "2026-10-02T23:53:49-04:00",
+            }
+        }
+    }
+    current_configurations = {
+        "climate.salon": {
+            "setpoint": {
+                "value": "20",
+                "source": "parameter",
+                "timestamp": "2026-10-12T23:53:49-04:00",
+            }
+        }
+    }
+
+    with caplog.at_level(logging.INFO, logger="controller.main"):
+        _log_parameter_setpoint_updates(previous_configurations, current_configurations)
+
+    assert "IHD-side temperature setpoint change detected for climate.salon: 20 C" in caplog.text
+    assert "previous source=default_parameter" in caplog.text
+    assert "2026-10-12T23:53:49-04:00" in caplog.text
+
+
+def test_changed_parameter_setpoint_is_logged_once_per_snapshot_change(caplog):
+    previous_configurations = {
+        "climate.salon": {
+            "setpoint": {
+                "value": "19.5",
+                "source": "parameter",
+                "timestamp": "2026-10-12T23:53:49-04:00",
+            }
+        }
+    }
+    current_configurations = {
+        "climate.salon": {
+            "setpoint": {
+                "value": "20",
+                "source": "parameter",
+                "timestamp": "2026-10-12T23:56:42-04:00",
+            }
+        }
+    }
+
+    with caplog.at_level(logging.INFO, logger="controller.main"):
+        _log_parameter_setpoint_updates(previous_configurations, current_configurations)
+        _log_parameter_setpoint_updates(current_configurations, current_configurations)
+
+    assert caplog.text.count("IHD-side temperature setpoint change detected for climate.salon") == 1
+    assert "19.5 -> 20 C" in caplog.text
 
 
 def test_shadow_mode_logs_proposals_without_calling_home_assistant():

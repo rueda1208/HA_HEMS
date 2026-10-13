@@ -61,6 +61,73 @@ def setpoint_entity_ids(configurations: dict[str, Any]) -> set[str]:
     }
 
 
+def _parameter_setpoint_states(configurations: dict[str, Any]) -> dict[str, tuple[Any, Any, Any]]:
+    states: dict[str, tuple[Any, Any, Any]] = {}
+    for entity_id, configuration in configurations.items():
+        if not isinstance(configuration, dict):
+            continue
+        setpoint = configuration.get("setpoint")
+        if not isinstance(setpoint, dict) or setpoint.get("value") is None:
+            continue
+        states[entity_id] = (
+            setpoint["value"],
+            setpoint.get("source"),
+            setpoint.get("timestamp"),
+        )
+    return states
+
+
+def _log_parameter_setpoint_updates(
+    previous_configurations: dict[str, Any] | None,
+    current_configurations: dict[str, Any],
+) -> None:
+    previous_states = _parameter_setpoint_states(previous_configurations or {})
+    current_states = _parameter_setpoint_states(current_configurations)
+
+    if previous_configurations is None:
+        for entity_id, (value, source, timestamp) in sorted(current_states.items()):
+            if source == "parameter":
+                logger.info(
+                    "IHD-side HEMS parameter temperature setpoint loaded for %s: %s C (timestamp=%s)",
+                    entity_id,
+                    value,
+                    timestamp,
+                )
+        return
+
+    for entity_id in sorted(previous_states.keys() | current_states.keys()):
+        previous = previous_states.get(entity_id)
+        current = current_states.get(entity_id)
+        if previous == current:
+            continue
+
+        if current is not None and current[1] == "parameter":
+            if previous is not None and previous[1] == "parameter":
+                logger.info(
+                    "IHD-side temperature setpoint change detected for %s: %s -> %s C (source=parameter, timestamp=%s)",
+                    entity_id,
+                    previous[0],
+                    current[0],
+                    current[2],
+                )
+            else:
+                previous_source = previous[1] if previous is not None else "none"
+                logger.info(
+                    "IHD-side temperature setpoint change detected for %s: %s C (source=parameter, previous source=%s, timestamp=%s)",
+                    entity_id,
+                    current[0],
+                    previous_source,
+                    current[2],
+                )
+        elif previous is not None and previous[1] == "parameter":
+            logger.info(
+                "IHD-side temperature setpoint override cleared for %s (previously %s C, timestamp=%s)",
+                entity_id,
+                previous[0],
+                previous[2],
+            )
+
+
 def _get_hems_poll_seconds() -> float:
     return float(os.getenv("HEMS_POLL_SECONDS", "30"))
 
@@ -282,6 +349,9 @@ def main() -> None:
 
             try:
                 fresh_snapshot = fetch_hems_snapshot()
+                with snapshot_lock:
+                    previous_configurations = snapshot.configurations if snapshot is not None else None
+                _log_parameter_setpoint_updates(previous_configurations, fresh_snapshot.configurations)
                 with snapshot_lock:
                     snapshot = fresh_snapshot
                 event_listener.set_relevant_entity_ids(setpoint_entity_ids(fresh_snapshot.configurations))

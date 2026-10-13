@@ -26,9 +26,18 @@ logger = logging.getLogger(__name__)
 
 def _parse_gdp_device_selection(
     raw_devices: Any,
-) -> tuple[frozenset[str] | None, dict[str, bool]]:
+    configurations: Dict[str, Any],
+) -> tuple[frozenset[str], dict[str, bool]]:
     if raw_devices is None:
-        return None, {}
+        temperature_device_types = {DeviceType.THERMOSTAT, DeviceType.HEAT_PUMP, DeviceType.ZONE}
+        return (
+            frozenset(
+                device_id
+                for device_id, configuration in configurations.items()
+                if configuration.get("device_type") in temperature_device_types
+            ),
+            {},
+        )
     if not isinstance(raw_devices, list):
         raise ValueError("hub gdp_device_ids must be a list")
 
@@ -92,7 +101,9 @@ class Controller:
             raise ValueError(f"Unsupported GDP profile in hub configuration: {profile_value}") from error
 
         raw_gdp_device_ids = hub_configuration.get("gdp_device_ids", {}).get("value")
-        gdp_device_ids, gdp_preconditioning_by_device = _parse_gdp_device_selection(raw_gdp_device_ids)
+        gdp_device_ids, gdp_preconditioning_by_device = _parse_gdp_device_selection(
+            raw_gdp_device_ids, configurations
+        )
 
         if gdp_event:
             logger.info("GDP event detected, adjusting control strategy accordingly")

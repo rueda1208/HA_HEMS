@@ -5,18 +5,70 @@
       "source": "parameter",
       "timestamp": "2026-10-01T16:51:20.482458-04:00"
     },
+    "device_type": "hub",
     "gdp_profile": {
       "value": "moderate"
     },
     "gdp_device_ids": {
       "value": [
         {
+          "device_id": "climate.salon",
+          "preconditioning": true
+        },
+        {
+          "device_id": "zone.5a8feb28",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.garage",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.cuisine",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.chambre_1",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.chambre_2",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.chambre_3",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.heat_pump",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.salle_eau",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.salle_bain",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.sous_sol_1",
+          "preconditioning": true
+        },
+        {
           "device_id": "climate.sous_sol_2",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.salle_manger",
+          "preconditioning": true
+        },
+        {
+          "device_id": "climate.heat_pump_heat_pump",
           "preconditioning": true
         }
       ]
-    },
-    "device_type": "hub"
+    }
   },
   "climate.salon": {
     "setpoint": {

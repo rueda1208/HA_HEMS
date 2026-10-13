@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
@@ -14,6 +15,7 @@ from controller.utils.schedule import DeviceSchedule
 
 
 logger = logging.getLogger(__name__)
+GDP_SETPOINT_INCREMENT_C = 0.5
 
 
 class TargetTemperatureSource(StrEnum):
@@ -28,6 +30,11 @@ class TargetTemperatureResolution:
     value: float
     source: TargetTemperatureSource
     gdp_phase: GdpPhase = GdpPhase.NORMAL
+
+
+def _round_gdp_setpoint(value: float) -> float:
+    increments = math.floor(abs(value) / GDP_SETPOINT_INCREMENT_C + 0.5)
+    return math.copysign(increments * GDP_SETPOINT_INCREMENT_C, value)
 
 
 def _get_default_temperature(device_configuration: Dict[str, Any], device_id: str) -> float:
@@ -80,7 +87,14 @@ def _get_last_schedule_change(device_schedule: DeviceSchedule | None, now: datet
     )
 
 
-def _ramp(ramping_time: timedelta, elapsed: timedelta, initial_value: float, target_value: float, margin: timedelta) -> float:
+def _ramp(
+    ramping_time: timedelta,
+    elapsed: timedelta,
+    initial_value: float,
+    target_value: float,
+    margin: timedelta,
+    cosine: bool = False,
+) -> float:
     ramping_seconds = (ramping_time - margin).total_seconds()
     elapsed_seconds = elapsed.total_seconds()
 
@@ -90,6 +104,8 @@ def _ramp(ramping_time: timedelta, elapsed: timedelta, initial_value: float, tar
         return round(initial_value, 2)
 
     ratio = elapsed_seconds / ramping_seconds
+    if cosine:
+        ratio = (1 - math.cos(math.pi * ratio)) / 2
     return round(initial_value + (target_value - initial_value) * ratio, 2)
 
 
@@ -112,34 +128,67 @@ def _apply_gdp_adjustment(
                 return result[0].setpoint
         return _get_default_temperature(device_configuration, device_id)
 
+    def max_event_baseline() -> float:
+        reduction_start, reduction_end = plan.reduction_window
+        maximum = baseline_at(reduction_start.hour)
+        for hour in range(reduction_start.hour, reduction_end.hour):
+            maximum = max(maximum, baseline_at(hour))
+        return maximum
+
+    def preconditioning_target() -> float:
+        return profile.flexibility_upward + max_event_baseline()
+
     if phase == GdpPhase.REDUCTION:
-        return schedule_temperature - profile.flexibility_downward
+        reduction_target = schedule_temperature - profile.flexibility_downward
+        if profile.name == GdpProfileName.EXTREME:
+            return reduction_target
+
+        reduction_start, _ = plan.reduction_window
+        elapsed = now - reduction_start
+        if elapsed < profile.ramp_margin:
+            initial_value = (
+                preconditioning_target()
+                if profile.preconditioning_enabled
+                else baseline_at(reduction_start.hour)
+            )
+            return _ramp(
+                ramping_time=profile.ramp_margin,
+                elapsed=elapsed,
+                initial_value=initial_value,
+                target_value=reduction_target,
+                margin=timedelta(0),
+                cosine=True,
+            )
+        return reduction_target
 
     if phase == GdpPhase.PRECONDITIONING:
         precond_start, precond_end = plan.preconditioning_window
-        reduction_start, reduction_end = plan.reduction_window
-
-        max_baseline = baseline_at(reduction_start.hour)
-        for hour in range(reduction_start.hour, reduction_end.hour):
-            max_baseline = max(max_baseline, baseline_at(hour))
+        target_value = preconditioning_target()
+        if profile.name == GdpProfileName.EXTREME:
+            return target_value
 
         return _ramp(
             ramping_time=precond_end - precond_start,
             elapsed=now - precond_start,
             initial_value=baseline_at(precond_start.hour),
-            target_value=profile.flexibility_upward + max_baseline,
+            target_value=target_value,
             margin=profile.ramp_margin,
+            cosine=True,
         )
 
     if phase == GdpPhase.RECOVERY:
         recovery_start, recovery_end = plan.recovery_window
+        target_value = baseline_at(recovery_end.hour)
+        if profile.name == GdpProfileName.EXTREME:
+            return target_value
 
         return _ramp(
             ramping_time=recovery_end - recovery_start,
             elapsed=now - recovery_start,
-            initial_value=baseline_at(recovery_start.hour - 1),
-            target_value=baseline_at(recovery_end.hour),
+            initial_value=baseline_at(recovery_start.hour) - profile.flexibility_downward,
+            target_value=target_value,
             margin=profile.ramp_margin,
+            cosine=True,
         )
 
     return schedule_temperature
@@ -222,6 +271,10 @@ def resolve_target_temperature(
             adjusted = _apply_gdp_adjustment(
                 schedule_temperature, now, day_of_week, device_configuration, device_id, plan, phase, device_schedule
             )
-            return TargetTemperatureResolution(adjusted, TargetTemperatureSource.GDP_EVENT, phase)
+            return TargetTemperatureResolution(
+                _round_gdp_setpoint(adjusted),
+                TargetTemperatureSource.GDP_EVENT,
+                phase,
+            )
 
     return TargetTemperatureResolution(schedule_temperature, TargetTemperatureSource.SCHEDULE)
