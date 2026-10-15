@@ -45,13 +45,19 @@ copy_example() {
   local source="$1"
   local destination="$2"
 
+  if [[ -e "$destination" ]]; then
+    echo "Keeping existing mock file: $destination"
+    return
+  fi
+
   cp -f "$source" "$destination"
-  echo "Refreshed mock file: $destination"
+  echo "Installed mock example $source -> $destination"
 }
 
+DEVICE_CONFIGURATION_EXAMPLE="$REPO_ROOT/config/controller/device-configuration.mock.example.json"
 require_file "$REPO_ROOT/controller/config.yaml"
 require_file "$REPO_ROOT/controller/Dockerfile"
-require_file "$REPO_ROOT/config/controller/device-configuration.mock.example.json"
+require_file "$DEVICE_CONFIGURATION_EXAMPLE"
 require_file "$REPO_ROOT/config/controller/peak-events.example.json"
 require_file "$REPO_ROOT/config/controller/heat-pump.example.yaml"
 
@@ -76,6 +82,9 @@ sed -i \
   -e "s|^name: \"Controller\".*|name: \"$ESCAPED_ADDON_NAME\"|" \
   -e "s|^slug: \"controller\".*|slug: \"$ESCAPED_ADDON_SLUG\"|" \
   -e 's/^  hems_data_source: api/  hems_data_source: mock/' \
+  -e 's|^  mock_configuration_path: .*|  mock_configuration_path: "/share/controller/config/device-configuration.mock.example.json"|' \
+  -e 's|^  mock_gdp_events_path: .*|  mock_gdp_events_path: "/share/controller/config/peak-events.example.json"|' \
+  -e 's|^  mock_heat_pump_specifications_path: .*|  mock_heat_pump_specifications_path: "/share/controller/config/heat-pump.example.yaml"|' \
   "$ADDON_CONFIG"
 
 if ! grep -q "^name: \"$ADDON_NAME\"" "$ADDON_CONFIG" \
@@ -85,16 +94,18 @@ if ! grep -q "^name: \"$ADDON_NAME\"" "$ADDON_CONFIG" \
 fi
 
 copy_example \
-  "$REPO_ROOT/config/controller/device-configuration.mock.example.json" \
-  "$SHARE_CONFIG_DIR/device-configuration.json"
-copy_example \
-  "$REPO_ROOT/config/controller/peak-events.example.json" \
-  "$SHARE_CONFIG_DIR/peak-events.json"
-copy_example \
-  "$REPO_ROOT/config/controller/heat-pump.example.yaml" \
-  "$SHARE_CONFIG_DIR/heat-pump.yaml"
+  "$DEVICE_CONFIGURATION_EXAMPLE" \
+  "$SHARE_CONFIG_DIR/$(basename "$DEVICE_CONFIGURATION_EXAMPLE")"
+for example in "$REPO_ROOT"/config/controller/*example*; do
+  [[ -f "$example" ]] || continue
+  if [[ "$example" == "$DEVICE_CONFIGURATION_EXAMPLE" ]]; then
+    continue
+  fi
+  copy_example "$example" "$SHARE_CONFIG_DIR/$(basename "$example")"
+done
 
 echo "Add-on '$ADDON_NAME' (slug: $ADDON_SLUG) prepared at: $ADDON_DEST"
 echo "Shared mock files are under: $SHARE_CONFIG_DIR"
+echo "All config/controller files with 'example' in the filename are installed by basename."
 echo "Update the sample GDP event dates before testing; the checked-in dates are illustrative."
 echo "In Home Assistant, reload local add-ons, install $ADDON_NAME, review its options, and start it in shadow mode."
