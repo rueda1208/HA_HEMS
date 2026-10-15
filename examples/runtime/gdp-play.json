@@ -9,8 +9,8 @@
   },
   {
   "offre": "CPC-D",
-  "datedebut": "2026-10-15T06:00:00-04:00",
-  "datefin": "2026-10-15T10:00:00-04:00",
+    "datedebut": "2026-10-15T11:00:00-04:00",
+    "datefin": "2026-10-15T11:15:00-04:00",
   "plagehoraire": "AM",
   "duree": "PT04H00MS",
   "secteurclient": "Residentiel"

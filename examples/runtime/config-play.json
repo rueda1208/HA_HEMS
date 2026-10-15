@@ -105,6 +105,18 @@
       "source": "default_parameter",
       "timestamp": "2026-10-02T14:58:49.956795-04:00"
     },
+    "gdp": {
+      "am": {
+        "preconditioning": true,
+        "flexibility_upward": 1,
+        "flexibility_downward": 3
+      },
+      "pm": {
+        "preconditioning": true,
+        "flexibility_upward": 1,
+        "flexibility_downward": 3
+      }
+    },
     "preconditioning": {
       "value": "0.0",
       "source": "default_parameter",
