@@ -1,6 +1,8 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+from controller.base import SwitchControlAction
+
 
 with patch("sqlalchemy.create_engine", return_value=MagicMock()):
     from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
@@ -90,6 +92,62 @@ def test_execute_heat_pump_posts_mode_and_setpoint():
     assert all(call.kwargs["timeout"] == 10 for call in post.call_args_list)
 
 
+def test_execute_water_heater_switch_action_posts_domain_service_and_records_control():
+    interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
+    interface._save_in_database = MagicMock()
+    entity_id = "switch.chauffe_eau"
+    action = SwitchControlAction(desired_state="off", reason="gdp_event_reduction")
+
+    with patch("controller.ha_interface.ha_interface.requests.post", return_value=ResponseDouble({})) as post:
+        interface.execute_control_actions({entity_id: action}, {entity_id: {"state": "on"}})
+
+    post.assert_called_once_with(
+        "http://ha/api/services/switch/turn_off",
+        headers=interface._headers,
+        json={"entity_id": entity_id},
+        timeout=10,
+    )
+    interface._save_in_database.assert_called_once_with(
+        data={
+            "metric_type": "control",
+            "device_id": entity_id,
+            "name": "switch_state",
+            "value": 0,
+        }
+    )
+
+
+def test_execute_water_heater_switch_action_skips_when_state_already_matches():
+    interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
+    interface._save_in_database = MagicMock()
+    entity_id = "switch.chauffe_eau"
+    action = SwitchControlAction(desired_state="on", reason="gdp_event_end")
+
+    with patch("controller.ha_interface.ha_interface.requests.post") as post:
+        interface.execute_control_actions({entity_id: action}, {entity_id: {"state": "on"}})
+
+    post.assert_not_called()
+    interface._save_in_database.assert_not_called()
+
+
+def test_execute_water_heater_restore_uses_switch_turn_on_service():
+    interface = HomeAssistantDeviceInterface("http://ha", "token", allow_control=True)
+    interface._save_in_database = MagicMock()
+
+    with patch("controller.ha_interface.ha_interface.requests.post", return_value=ResponseDouble({})) as post:
+        interface.execute_control_actions(
+            {"switch.chauffe_eau": SwitchControlAction(desired_state="on", reason="gdp_event_end")},
+            {"switch.chauffe_eau": {"state": "off"}},
+        )
+
+    post.assert_called_once_with(
+        "http://ha/api/services/switch/turn_on",
+        headers=interface._headers,
+        json={"entity_id": "switch.chauffe_eau"},
+        timeout=10,
+    )
+
+
 def test_save_shadow_control_actions_persists_proposals_without_actuating():
     interface = HomeAssistantDeviceInterface("http://ha", "token")
     interface._save_in_database = MagicMock()
@@ -128,6 +186,25 @@ def test_save_shadow_control_actions_persists_proposals_without_actuating():
             "value": 20.0,
         },
     ]
+
+
+def test_save_shadow_control_actions_records_water_heater_switch_state():
+    interface = HomeAssistantDeviceInterface("http://ha", "token")
+    interface._save_in_database = MagicMock()
+    action = SwitchControlAction(desired_state="off", reason="gdp_event_reduction")
+
+    with patch("controller.ha_interface.ha_interface.requests.post") as post:
+        interface.save_shadow_control_actions({"switch.chauffe_eau": action})
+
+    post.assert_not_called()
+    interface._save_in_database.assert_called_once_with(
+        data={
+            "metric_type": "control_shadow",
+            "device_id": "switch.chauffe_eau",
+            "name": "switch_state",
+            "value": 0,
+        }
+    )
 
 
 def test_save_setpoint_state_change_writes_old_and_new_at_event_time():

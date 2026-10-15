@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, Dict, Tuple
 
+from controller.utils.configuration import configured_parameter_value
 from controller.utils.peak_events import PeakEvent
 
 
@@ -67,10 +68,10 @@ class GdpResponseProfile:
         preconditioning_enabled = (
             preconditioning_override
             if preconditioning_override is not None
-            else _configured_parameter_value(device_configuration, "preconditioning")
+            else configured_parameter_value(device_configuration, "preconditioning")
         )
-        flexibility_upward = _configured_parameter_value(device_configuration, "flexibility_upward")
-        flexibility_downward = _configured_parameter_value(device_configuration, "flexibility_downward")
+        flexibility_upward = configured_parameter_value(device_configuration, "flexibility_upward")
+        flexibility_downward = configured_parameter_value(device_configuration, "flexibility_downward")
 
         return cls(
             name=preset.name,
@@ -89,12 +90,16 @@ class GdpResponseProfile:
         )
 
 
+GDP_PRECONDITIONING_LEAD_TIME = timedelta(hours=3)
+GDP_RECOVERY_DURATION = timedelta(hours=1)
+
+
 GDP_PROFILE_PRESETS: Dict[GdpProfileName, GdpResponseProfile] = {
     GdpProfileName.EXTREME: GdpResponseProfile(
         name=GdpProfileName.EXTREME,
         preconditioning_enabled=True,
-        preconditioning_lead_time=timedelta(hours=3),
-        recovery_duration=timedelta(hours=2),
+        preconditioning_lead_time=GDP_PRECONDITIONING_LEAD_TIME,
+        recovery_duration=GDP_RECOVERY_DURATION,
         flexibility_upward=2.0,
         flexibility_downward=6.0,
         ramp_margin=timedelta(minutes=15),
@@ -102,8 +107,8 @@ GDP_PROFILE_PRESETS: Dict[GdpProfileName, GdpResponseProfile] = {
     GdpProfileName.BOLD: GdpResponseProfile(
         name=GdpProfileName.BOLD,
         preconditioning_enabled=True,
-        preconditioning_lead_time=timedelta(hours=2),
-        recovery_duration=timedelta(hours=1),
+        preconditioning_lead_time=GDP_PRECONDITIONING_LEAD_TIME,
+        recovery_duration=GDP_RECOVERY_DURATION,
         flexibility_upward=1.0,
         flexibility_downward=4.0,
         ramp_margin=timedelta(minutes=15),
@@ -111,20 +116,13 @@ GDP_PROFILE_PRESETS: Dict[GdpProfileName, GdpResponseProfile] = {
     GdpProfileName.MODERATE: GdpResponseProfile(
         name=GdpProfileName.MODERATE,
         preconditioning_enabled=True,
-        preconditioning_lead_time=timedelta(hours=2),
-        recovery_duration=timedelta(hours=1),
+        preconditioning_lead_time=GDP_PRECONDITIONING_LEAD_TIME,
+        recovery_duration=GDP_RECOVERY_DURATION,
         flexibility_upward=1.0,
         flexibility_downward=3.0,
         ramp_margin=timedelta(minutes=15),
     ),
 }
-
-
-def _configured_parameter_value(device_configuration: Dict[str, Any], key: str) -> Any:
-    setting = device_configuration.get(key)
-    if not isinstance(setting, dict) or setting.get("source") == "default_parameter":
-        return None
-    return setting.get("value")
 
 
 @dataclass

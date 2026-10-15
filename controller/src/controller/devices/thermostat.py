@@ -5,8 +5,8 @@ import logging
 from typing import Any, Dict
 
 from controller.base import ControlContext
-from controller.helpers import is_linked_to_controlled_zone
-from controller.target_temperature import resolve_target_temperature
+from controller.utils.device_helpers import is_linked_to_controlled_zone
+from controller.utils.target_temperature import resolve_target_temperature
 
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,9 @@ class ThermostatController:
     """Calculate actions for a standalone thermostat."""
 
     def get_control_actions(self, context: ControlContext) -> Dict[str, Any]:
-        if is_linked_to_controlled_zone(context.device_configuration, context.all_devices_configurations):
+        if is_linked_to_controlled_zone(
+            context.device_id, context.device_configuration, context.all_devices_configurations
+        ):
             logger.info(
                 f"Thermostat {context.device_id} is linked to a controlled zone, skipping individual control actions"
             )

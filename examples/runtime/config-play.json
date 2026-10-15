@@ -7,13 +7,13 @@
     },
     "device_type": "hub",
     "gdp_profile": {
-      "value": "moderate"
+      "value": "bold"
     },
     "gdp_device_ids": {
       "value": [
         {
           "device_id": "climate.salon",
-          "preconditioning": true
+          "preconditioning": false
         },
         {
           "device_id": "zone.5a8feb28",
@@ -29,11 +29,11 @@
         },
         {
           "device_id": "climate.chambre_1",
-          "preconditioning": true
+          "preconditioning": false
         },
         {
           "device_id": "climate.chambre_2",
-          "preconditioning": true
+          "preconditioning": false
         },
         {
           "device_id": "climate.chambre_3",
@@ -45,7 +45,7 @@
         },
         {
           "device_id": "climate.salle_eau",
-          "preconditioning": true
+          "preconditioning": false
         },
         {
           "device_id": "climate.salle_bain",
@@ -66,15 +66,23 @@
         {
           "device_id": "climate.heat_pump_heat_pump",
           "preconditioning": true
+        },
+        {
+          "device_id": "switch.chauffe_eau",
+          "preconditioning": false
         }
       ]
     }
+  },
+  "switch.chauffe_eau": {
+    "device_type": "water_heater",
+    "switch_entity_id": "switch.chauffe_eau"
   },
   "climate.salon": {
     "setpoint": {
       "value": "22",
       "source": "parameter",
-      "timestamp": "2026-10-13T05:23:49.956795-04:00"
+      "timestamp": "2026-10-14T22:50:00-04:00"
     },
     "device_name": {
       "value": "",

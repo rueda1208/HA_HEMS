@@ -60,7 +60,7 @@ def test_zone_controller_produces_heat_pump_and_thermostat_actions(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT_SENSOR_ID", "sensor.environment")
 
     controller = ZoneController(MockDatabaseEngine())
-    with patch.object(utils, "get_heat_pump_cop", return_value=2.5), patch.object(
+    with patch("controller.devices.zone.get_heat_pump_cop", return_value=2.5), patch.object(
         controller, "_get_indoor_temperature_trend", return_value=None
     ):
         actions = controller.get_control_actions(make_context(zone, devices, states))

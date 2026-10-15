@@ -11,6 +11,7 @@ import requests
 
 from sqlalchemy import create_engine
 
+from controller.base import SwitchControlAction
 from controller.utils import utils
 
 
@@ -79,7 +80,36 @@ class HomeAssistantDeviceInterface:
             return
 
         for entity_id, action in control_actions.items():
-            if isinstance(action, dict):
+            if isinstance(action, SwitchControlAction):
+                current_state = devices_states.get(entity_id, {}).get("state")
+                if action.desired_state == current_state:
+                    logger.info(
+                        "No change to water heater state requested for %s (remains %s)",
+                        entity_id,
+                        action.desired_state,
+                    )
+                    continue
+
+                service = "turn_on" if action.desired_state == "on" else "turn_off"
+                api_url = f"{self._url_base}/api/services/switch/{service}"
+                payload = {"entity_id": entity_id}
+                response = requests.post(api_url, headers=self._headers, json=payload, timeout=10)
+                response.raise_for_status()
+                logger.info(
+                    "Requested switch.%s for %s (reason=%s)",
+                    service,
+                    entity_id,
+                    action.reason,
+                )
+                self._save_in_database(
+                    data={
+                        "metric_type": "control",
+                        "device_id": entity_id,
+                        "name": "switch_state",
+                        "value": 1 if action.desired_state == "on" else 0,
+                    }
+                )
+            elif isinstance(action, dict):
                 current_state = devices_states.get(entity_id, {})
                 hvac_mode = action["state"]
                 if hvac_mode == current_state.get("state"):
@@ -134,7 +164,15 @@ class HomeAssistantDeviceInterface:
         mode_values = {"off": 0, "heat": 1, "cool": 2, "auto": 3, "dry": 4, "fan_only": 5}
 
         for entity_id, action in control_actions.items():
-            if isinstance(action, dict):
+            if isinstance(action, SwitchControlAction):
+                values = {"switch_state": 1 if action.desired_state == "on" else 0}
+                logger.info(
+                    "Water heater switch proposal for %s: %s (reason=%s)",
+                    entity_id,
+                    action.desired_state,
+                    action.reason,
+                )
+            elif isinstance(action, dict):
                 values = {
                     "hvac_mode": mode_values.get(action.get("state"), np.nan),
                     "setpoint": action.get("setpoint"),

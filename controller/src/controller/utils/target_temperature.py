@@ -1,3 +1,5 @@
+"""Resolve target temperatures from schedules, overrides, and GDP events."""
+
 from __future__ import annotations
 
 import logging
@@ -112,7 +114,6 @@ def _ramp(
 def _apply_gdp_adjustment(
     schedule_temperature: float,
     now: datetime,
-    day_of_week: int,
     device_configuration: Dict[str, Any],
     device_id: str,
     plan: PeakEventPlan,
@@ -121,72 +122,65 @@ def _apply_gdp_adjustment(
 ) -> float:
     profile = plan.profile
 
-    def baseline_at(hour: int) -> float:
+    def baseline_at(moment: datetime) -> float:
         if device_schedule is not None:
-            result = device_schedule.get_entry_at_or_before(hour, day_of_week)
+            result = device_schedule.get_entry_at(moment)
             if result is not None:
                 return result[0].setpoint
         return _get_default_temperature(device_configuration, device_id)
 
-    def max_event_baseline() -> float:
+    def average_event_baseline() -> float:
         reduction_start, reduction_end = plan.reduction_window
-        maximum = baseline_at(reduction_start.hour)
-        for hour in range(reduction_start.hour, reduction_end.hour):
-            maximum = max(maximum, baseline_at(hour))
-        return maximum
+        if device_schedule is None:
+            return _get_default_temperature(device_configuration, device_id)
+        return device_schedule.average_setpoint_between(reduction_start, reduction_end)
 
     def preconditioning_target() -> float:
-        return profile.flexibility_upward + max_event_baseline()
+        return average_event_baseline() + profile.flexibility_upward
+
+    def reduction_target() -> float:
+        reference_temperature = (
+            preconditioning_target() if profile.preconditioning_enabled else average_event_baseline()
+        )
+        return reference_temperature - profile.flexibility_downward
 
     if phase == GdpPhase.REDUCTION:
-        reduction_target = schedule_temperature - profile.flexibility_downward
-        if profile.name == GdpProfileName.EXTREME:
-            return reduction_target
-
         reduction_start, _ = plan.reduction_window
         elapsed = now - reduction_start
         if elapsed < profile.ramp_margin:
             initial_value = (
                 preconditioning_target()
                 if profile.preconditioning_enabled
-                else baseline_at(reduction_start.hour)
+                else baseline_at(reduction_start)
             )
             return _ramp(
                 ramping_time=profile.ramp_margin,
                 elapsed=elapsed,
                 initial_value=initial_value,
-                target_value=reduction_target,
+                target_value=reduction_target(),
                 margin=timedelta(0),
                 cosine=True,
             )
-        return reduction_target
+        return reduction_target()
 
     if phase == GdpPhase.PRECONDITIONING:
         precond_start, precond_end = plan.preconditioning_window
-        target_value = preconditioning_target()
-        if profile.name == GdpProfileName.EXTREME:
-            return target_value
-
         return _ramp(
             ramping_time=precond_end - precond_start,
             elapsed=now - precond_start,
-            initial_value=baseline_at(precond_start.hour),
-            target_value=target_value,
+            initial_value=baseline_at(precond_start),
+            target_value=preconditioning_target(),
             margin=profile.ramp_margin,
             cosine=True,
         )
 
     if phase == GdpPhase.RECOVERY:
         recovery_start, recovery_end = plan.recovery_window
-        target_value = baseline_at(recovery_end.hour)
-        if profile.name == GdpProfileName.EXTREME:
-            return target_value
-
         return _ramp(
             ramping_time=recovery_end - recovery_start,
             elapsed=now - recovery_start,
-            initial_value=baseline_at(recovery_start.hour) - profile.flexibility_downward,
-            target_value=target_value,
+            initial_value=reduction_target(),
+            target_value=baseline_at(recovery_end),
             margin=profile.ramp_margin,
             cosine=True,
         )
@@ -210,8 +204,6 @@ def resolve_target_temperature(
     the window start are eligible, so one can supersede the event's remaining phases without a stale
     earlier setpoint suppressing GDP response.
     """
-    day_of_week = (now.weekday() + 1) % 7  # Convert Monday=0 to Sunday=0, ..., Saturday=6
-
     device_schedule = _parse_schedule(device_configuration, device_id)
     schedule_entry = device_schedule.get_entry_at(now) if device_schedule is not None else None
     schedule_temperature = (
@@ -269,7 +261,7 @@ def resolve_target_temperature(
         phase = plan.phase_at(now)
         if phase != GdpPhase.NORMAL:
             adjusted = _apply_gdp_adjustment(
-                schedule_temperature, now, day_of_week, device_configuration, device_id, plan, phase, device_schedule
+                schedule_temperature, now, device_configuration, device_id, plan, phase, device_schedule
             )
             return TargetTemperatureResolution(
                 _round_gdp_setpoint(adjusted),

@@ -29,19 +29,42 @@ configuration and GDP files, uses mock specifications when zone COP is evaluated
 status posts. HA entity states and setpoint events remain live. Paths and source selection are read at process startup;
 restart the app after changing them.
 
-On each successful configuration refresh, info logs explicitly identify IHD-side temperature setpoints loaded,
-changed, or cleared, including their HEMS timestamps. Updates to `default_parameter` setpoints are not logged as
-IHD/parameter overrides.
+At startup, the controller logs configured IHD-side temperature setpoints once. On later successful HEMS refreshes, it
+logs one `configuration_changed` record per changed device or `hub.*` entry, containing only changed field paths and
+old/new values (including field source and timestamp metadata where changed). Identical entries produce no change log,
+and values under secret-like fields are redacted. This records changes observed between polls; it is not a persistent
+configuration-history store beyond the application's retained logs.
+
+When the GDP event or its effective profile/device selection changes, the controller logs the event fields, configured
+and normalized profile names, selected GDP device IDs, and effective temperature-device GDP settings. It also logs
+per-device GDP phase transitions with the event window, observed timestamp, and scheduled phase start. These context
+and transition logs are emitted only when their values change; shadow proposals continue to be logged and stored at
+each control evaluation.
+
+Water-heater configurations use `device_type: water_heater` and a `switch_entity_id` pointing to the Home Assistant
+switch (for example, `switch.chauffe_eau`). By default, configured water heaters are GDP-selected unless
+`hub.gdp_device_ids` explicitly excludes them. They are not preconditioned: the controller proposes OFF during the
+event and restores ON after it ends. An ON transition during the event cancels GDP for that water heater until the
+event ends; an ON transition during preconditioning does not. The controller uses the HA state's `last_changed` time
+to preserve this rule after restart. Live switch actions remain subject to the existing control allowlist.
+
+The event selector retains the most recently ended event through its configured recovery window so the recovery phase
+can continue after `datefin`. An upcoming event takes precedence once its preconditioning window begins.
 
 The runtime-shaped example is [`device-configuration.mock.example.json`](../config/controller/device-configuration.mock.example.json).
 It includes the required `hub.<lowercase building_id>` control-mode entry, a weekly thermostat schedule, a timestamped
 HEMS parameter setpoint, and GDP settings. The hub's `gdp_profile.value` accepts `extreme`, `bold`, or `moderate`;
-their default temperature reductions are 6°C, 4°C, and 3°C below schedule, respectively. Extreme uses step-like
-transitions. Bold and Moderate use cosine-eased S-curves: the reduction entry is eased over the first 15 minutes,
-preconditioning reaches its target 15 minutes before the event, and recovery starts from the reduced target. The
-recovery ramp likewise reaches its schedule target 15 minutes before the recovery phase ends. GDP-phase setpoints are
-rounded to the nearest 0.5°C to match the supported thermostat increment; schedule-only and manual-override setpoints
-are not quantized by this GDP rule.
+their default upward/downward offsets are 2°C/6°C, 1°C/4°C, and 1°C/3°C, respectively. All profiles use the same
+phase behavior: preconditioning targets the time-weighted average scheduled temperature over the event plus the
+profile's upward offset; the reduction target is that preconditioning target minus the downward offset. The schedule
+average accounts for schedule changes during the event, including partial-hour periods. If preconditioning is disabled
+for a device, its reduction reference is the event-period average without the upward offset.
+
+All profiles use a 3-hour preconditioning lead and 1-hour recovery; the reduction phase follows the GDP event's own
+start and end times. Preconditioning and recovery use cosine-eased ramps, reaching their target 15 minutes before the
+phase ends; reduction entry uses the same curve over the first 15 minutes of the event. GDP-phase setpoints are rounded
+to the nearest 0.5°C to match the supported thermostat increment; schedule-only and manual-override setpoints are not
+quantized by this GDP rule.
 
 When `gdp_device_ids.value` is omitted or `null`, the controller selects all detected thermostat, heat-pump, and zone
 temperature controllers for GDP; profile preconditioning is enabled by default. To customize the selection, each entry

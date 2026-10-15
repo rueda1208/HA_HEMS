@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -65,7 +65,12 @@ class DeviceSchedule:
         """Find the last applicable schedule entry at or before `hour` on `day_of_week`, searching backward
         over the previous 7 days (looping over the week). Returns (entry, days_ago) or None if no entry exists.
         """
-        current_minutes = hour * 60
+        return self.get_entry_at_or_before_minute(hour * 60, day_of_week)
+
+    def get_entry_at_or_before_minute(
+        self, minute_of_day: int, day_of_week: int
+    ) -> Optional[Tuple[ScheduleEntry, int]]:
+        """Find the last applicable schedule entry at or before a minute of day."""
 
         for offset in range(7):
             day = (day_of_week - offset) % 7
@@ -75,7 +80,7 @@ class DeviceSchedule:
                 continue
 
             if offset == 0:
-                candidates = [entry for entry in day_entries if entry.minute_of_day <= current_minutes]
+                candidates = [entry for entry in day_entries if entry.minute_of_day <= minute_of_day]
                 if not candidates:
                     continue
                 return candidates[-1], offset
@@ -86,7 +91,35 @@ class DeviceSchedule:
         return None
 
     def get_entry_at(self, moment: datetime) -> Optional[Tuple[ScheduleEntry, int]]:
-        """Same as `get_entry_at_or_before`, but derives hour/day_of_week from a datetime (Sunday=0)."""
+        """Find the last applicable entry at or before a datetime (Sunday=0)."""
         day_of_week = (moment.weekday() + 1) % 7
-        return self.get_entry_at_or_before(moment.hour, day_of_week)
+        minute_of_day = moment.hour * 60 + moment.minute
+        return self.get_entry_at_or_before_minute(minute_of_day, day_of_week)
 
+    def average_setpoint_between(
+        self, start: datetime, end: datetime, default: float | None = None
+    ) -> float:
+        """Return the time-weighted scheduled setpoint over the half-open interval [start, end)."""
+        start_utc = start.astimezone(timezone.utc)
+        end_utc = end.astimezone(timezone.utc)
+        if end_utc <= start_utc:
+            raise ValueError("Schedule averaging requires an end time after the start time")
+
+        weighted_setpoint_seconds = 0.0
+        cursor = start_utc
+        while cursor < end_utc:
+            local_cursor = cursor.astimezone(start.tzinfo)
+            result = self.get_entry_at(local_cursor)
+            if result is None:
+                if default is None:
+                    raise ValueError("No schedule setpoint is available and no default was provided")
+                setpoint = default
+            else:
+                setpoint = result[0].setpoint
+
+            next_minute = cursor.replace(second=0, microsecond=0) + timedelta(minutes=1)
+            segment_end = min(end_utc, next_minute)
+            weighted_setpoint_seconds += setpoint * (segment_end - cursor).total_seconds()
+            cursor = segment_end
+
+        return weighted_setpoint_seconds / (end_utc - start_utc).total_seconds()

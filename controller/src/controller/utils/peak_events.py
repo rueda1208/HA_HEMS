@@ -21,6 +21,17 @@ class PeakEvent:
     datedebut: datetime = field(metadata=config(decoder=datetime.fromisoformat, encoder=datetime.isoformat))
     datefin: datetime = field(metadata=config(decoder=datetime.fromisoformat, encoder=datetime.isoformat))
 
+    @property
+    def identity_key(self) -> tuple[str, ...]:
+        return (
+            self.offre,
+            self.plagehoraire,
+            self.secteurclient,
+            self.datedebut.isoformat(),
+            self.datefin.isoformat(),
+            self.duree,
+        )
+
 
 class BasePeakEventClient(ABC):
     @abstractmethod

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Protocol
+from typing import Any, Dict, Literal, Protocol
 
 from controller.utils import utils
 from controller.utils.peak_event_plan import GdpProfileName
@@ -13,6 +13,18 @@ from controller.utils.peak_events import PeakEvent
 class SetpointOverride:
     value: float
     timestamp: datetime
+
+
+@dataclass(frozen=True)
+class SwitchControlAction:
+    desired_state: Literal["on", "off"]
+    reason: str
+
+    def __post_init__(self) -> None:
+        if self.desired_state not in {"on", "off"}:
+            raise ValueError(f"Unsupported switch state: {self.desired_state!r}")
+        if not self.reason:
+            raise ValueError("Switch control action reason must not be empty")
 
 
 @dataclass

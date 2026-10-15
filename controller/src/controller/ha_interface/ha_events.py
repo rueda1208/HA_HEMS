@@ -4,13 +4,76 @@ import json
 import logging
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Set
 from urllib.parse import urlparse, urlunparse
 
 import websocket
 
+from controller.base import SetpointOverride
+
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SetpointStateChange:
+    entity_id: str
+    old_value: float | None
+    new_value: float
+    timestamp: datetime
+
+
+def event_timestamp(event: dict[str, Any]) -> datetime | None:
+    event_data = event.get("event", {}).get("data", {})
+    new_state = event_data.get("new_state") or {}
+    timestamp = new_state.get("last_changed") or event.get("event", {}).get("time_fired")
+    if not isinstance(timestamp, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def setpoint_state_change_from_event(event: dict[str, Any]) -> SetpointStateChange | None:
+    data = event.get("event", {}).get("data", {})
+    entity_id = data.get("entity_id")
+    old_state = data.get("old_state") or {}
+    new_state = data.get("new_state") or {}
+    old_setpoint = (old_state.get("attributes") or {}).get("temperature")
+    new_setpoint = (new_state.get("attributes") or {}).get("temperature")
+    timestamp_value = new_state.get("last_updated") or event.get("event", {}).get("time_fired")
+    if not isinstance(entity_id, str) or new_setpoint is None or not isinstance(timestamp_value, str):
+        return None
+
+    try:
+        new_value = float(new_setpoint)
+        timestamp = datetime.fromisoformat(timestamp_value.replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            return None
+    except (TypeError, ValueError):
+        return None
+
+    try:
+        old_value = float(old_setpoint) if old_setpoint is not None else None
+    except (TypeError, ValueError):
+        old_value = None
+
+    if old_value == new_value:
+        return None
+
+    return SetpointStateChange(entity_id, old_value, new_value, timestamp)
+
+
+def setpoint_override_from_event(event: dict[str, Any]) -> tuple[str, SetpointOverride] | None:
+    change = setpoint_state_change_from_event(event)
+    if change is None:
+        return None
+    return change.entity_id, SetpointOverride(change.new_value, change.timestamp)
+
 
 class HomeAssistantEventListener:
     """Listen for Home Assistant state changes and notify a callback.

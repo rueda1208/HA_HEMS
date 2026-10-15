@@ -72,3 +72,26 @@ def test_get_entry_at_uses_sunday_zero_convention():
     entry, offset = result
     assert entry.setpoint == 19.0
     assert offset == 0
+
+
+def test_get_entry_at_uses_schedule_minute():
+    schedule = DeviceSchedule.from_dict({"setpoint": {"5": {"08:00": "20", "08:30": "21"}}})
+
+    result = schedule.get_entry_at(datetime(2026, 8, 28, 8, 45, tzinfo=timezone.utc))
+
+    assert result is not None
+    entry, offset = result
+    assert entry.setpoint == 21.0
+    assert offset == 0
+
+
+def test_average_setpoint_between_weights_partial_schedule_periods():
+    schedule = DeviceSchedule.from_dict({"setpoint": {"5": {"08:00": "20", "16:30": "22", "18:30": "18"}}})
+
+    average = schedule.average_setpoint_between(
+        datetime(2026, 8, 28, 16, 0, tzinfo=timezone.utc),
+        datetime(2026, 8, 28, 20, 0, tzinfo=timezone.utc),
+        default=21.0,
+    )
+
+    assert average == 20.25

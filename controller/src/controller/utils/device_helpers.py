@@ -1,3 +1,5 @@
+"""Helpers for device association and state lookups used by controllers."""
+
 from __future__ import annotations
 
 import logging
@@ -10,7 +12,9 @@ from controller.utils.device_type import DeviceType
 logger = logging.getLogger(__name__)
 
 
-def is_linked_to_controlled_zone(device_configuration: Dict[str, Any], all_devices_configurations: Dict[str, Any]) -> bool:
+def is_linked_to_controlled_zone(
+    device_id: str, device_configuration: Dict[str, Any], all_devices_configurations: Dict[str, Any]
+) -> bool:
     linked_zone_id = device_configuration.get("linked_zone_id", {}).get("value")
     if not linked_zone_id:
         return False
@@ -18,14 +22,15 @@ def is_linked_to_controlled_zone(device_configuration: Dict[str, Any], all_devic
     linked_zone_configuration = all_devices_configurations.get(linked_zone_id)
     if not linked_zone_configuration:
         logger.warning(
-            f"Device {device_configuration} is linked to zone {linked_zone_id} which does not exist in the "
-            f"configuration"
+            "Device %s is linked to zone %s which does not exist in the configuration",
+            device_id,
+            linked_zone_id,
         )
         return False
 
     linked_zone_mode = linked_zone_configuration.get("mode", {}).get("value", "off")
     if linked_zone_mode == "off":
-        logger.info(f"Device {device_configuration} is linked to zone {linked_zone_id} which is in OFF mode")
+        logger.debug("Device %s is linked to zone %s which is in OFF mode", device_id, linked_zone_id)
         return False
 
     return True

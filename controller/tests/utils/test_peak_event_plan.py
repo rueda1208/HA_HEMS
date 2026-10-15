@@ -34,6 +34,8 @@ def test_from_device_configuration_uses_preset_defaults():
         assert profile.flexibility_upward == preset.flexibility_upward
         assert profile.flexibility_downward == reduction
         assert profile.preconditioning_enabled is True
+        assert profile.preconditioning_lead_time == timedelta(hours=3)
+        assert profile.recovery_duration == timedelta(hours=1)
 
 
 def test_legacy_profile_names_map_to_current_presets():

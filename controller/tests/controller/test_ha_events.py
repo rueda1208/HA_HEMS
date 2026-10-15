@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import websocket
 
-from controller.ha_events import HomeAssistantEventListener
+from controller.ha_interface.ha_events import HomeAssistantEventListener
 
 
 def state_changed_message(entity_id="climate.thermostat"):
@@ -104,7 +104,7 @@ def test_listen_once_authenticates_subscribes_and_forwards_event():
     listener = HomeAssistantEventListener("http://ha", "secret", received.append)
     listener._on_state_changed = lambda event: (received.append(event), listener._stop_event.set())
 
-    with patch("controller.ha_events.websocket.create_connection", return_value=connection):
+    with patch("controller.ha_interface.ha_events.websocket.create_connection", return_value=connection):
         listener._listen_once()
 
     assert received == [state_changed_message()]
@@ -123,7 +123,7 @@ def test_listen_once_rejects_auth_failure():
     ]
     listener = HomeAssistantEventListener("http://ha", "secret", lambda event: None)
 
-    with patch("controller.ha_events.websocket.create_connection", return_value=connection):
+    with patch("controller.ha_interface.ha_events.websocket.create_connection", return_value=connection):
         try:
             listener._listen_once()
         except RuntimeError as error:

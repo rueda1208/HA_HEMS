@@ -66,9 +66,17 @@
         {
           "device_id": "climate.heat_pump_heat_pump",
           "preconditioning": true
+        },
+        {
+          "device_id": "switch.chauffe_eau",
+          "preconditioning": false
         }
       ]
     }
+  },
+  "switch.chauffe_eau": {
+    "device_type": "water_heater",
+    "switch_entity_id": "switch.chauffe_eau"
   },
   "climate.salon": {
     "setpoint": {

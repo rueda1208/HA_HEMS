@@ -1,6 +1,6 @@
 import pytest
 
-from controller.helpers import (
+from controller.utils.device_helpers import (
     get_devices_for_zone,
     get_heat_pump_device_id,
     get_indoor_temperature,
@@ -10,21 +10,21 @@ from controller.utils.device_type import DeviceType
 
 
 def test_is_linked_to_controlled_zone_false_when_no_link():
-    assert is_linked_to_controlled_zone({}, {}) is False
+    assert is_linked_to_controlled_zone("climate.device", {}, {}) is False
 
 
 def test_is_linked_to_controlled_zone_false_when_zone_off():
     device_configuration = {"linked_zone_id": {"value": "zone.living_room"}}
     all_configurations = {"zone.living_room": {"mode": {"value": "off"}}}
 
-    assert is_linked_to_controlled_zone(device_configuration, all_configurations) is False
+    assert is_linked_to_controlled_zone("climate.device", device_configuration, all_configurations) is False
 
 
 def test_is_linked_to_controlled_zone_true_when_zone_active():
     device_configuration = {"linked_zone_id": {"value": "zone.living_room"}}
     all_configurations = {"zone.living_room": {"mode": {"value": "heating"}}}
 
-    assert is_linked_to_controlled_zone(device_configuration, all_configurations) is True
+    assert is_linked_to_controlled_zone("climate.device", device_configuration, all_configurations) is True
 
 
 def test_get_devices_for_zone_filters_by_linked_zone_id():

@@ -13,9 +13,10 @@ import numpy as np
 from sqlalchemy import Engine, text
 
 from controller.base import ControlContext
-from controller.helpers import get_devices_for_zone, get_heat_pump_device_id, get_indoor_temperature
-from controller.target_temperature import resolve_target_temperature
+from controller.devices.heat_pump import get_heat_pump_cop
 from controller.utils import utils
+from controller.utils.device_helpers import get_devices_for_zone, get_heat_pump_device_id, get_indoor_temperature
+from controller.utils.target_temperature import resolve_target_temperature
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ class ZoneController:
         )
         target_temperature = resolution.value
 
-        heat_pump_cop = utils.get_heat_pump_cop(context.control_mode, outside_temperature)
+        heat_pump_cop = get_heat_pump_cop(context.control_mode, outside_temperature)
 
         environment_sensor_id = str(os.getenv("ENVIRONMENT_SENSOR_ID"))
         indoor_temperature = get_indoor_temperature(environment_sensor_id, context.devices_states)

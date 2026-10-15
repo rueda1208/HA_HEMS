@@ -2,13 +2,14 @@ import json
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+from controller.application import dispatch_control_actions
 from controller.controller import Controller
 from controller.ha_interface.ha_interface import HomeAssistantDeviceInterface
-from controller.main import (
-    _setpoint_override_from_event,
-    _setpoint_state_change_from_event,
-    dispatch_control_actions,
+from controller.ha_interface.ha_events import (
+    setpoint_override_from_event,
+    setpoint_state_change_from_event,
 )
+from controller.utils.configuration import retrieve_device_configuration
 from controller.utils import utils
 
 
@@ -50,8 +51,8 @@ def test_mock_hems_and_ha_setpoint_flow_through_shadow_control(tmp_path, monkeyp
             },
         }
     }
-    state_change = _setpoint_state_change_from_event(ha_event)
-    override = _setpoint_override_from_event(ha_event)
+    state_change = setpoint_state_change_from_event(ha_event)
+    override = setpoint_override_from_event(ha_event)
     assert state_change is not None
     assert override is not None
     entity_id, ha_override = override
@@ -82,7 +83,7 @@ def test_mock_hems_and_ha_setpoint_flow_through_shadow_control(tmp_path, monkeyp
             state_change.timestamp,
         )
 
-        first_configuration = utils.retrieve_device_configuration()
+        first_configuration = retrieve_device_configuration()
         first_actions = controller.get_control_actions(
             devices_states,
             first_configuration,
@@ -92,7 +93,7 @@ def test_mock_hems_and_ha_setpoint_flow_through_shadow_control(tmp_path, monkeyp
         dispatch_control_actions(ha_interface, first_actions, devices_states, "shadow", set())
 
         _write_configuration(configuration_path, 22.0, now - timedelta(seconds=10))
-        refreshed_configuration = utils.retrieve_device_configuration()
+        refreshed_configuration = retrieve_device_configuration()
         second_actions = controller.get_control_actions(
             devices_states,
             refreshed_configuration,

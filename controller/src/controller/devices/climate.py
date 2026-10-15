@@ -9,18 +9,15 @@ import numpy as np
 
 from sqlalchemy import Engine, text
 
+from controller.devices.heat_pump import get_heat_pump_cop
 from controller.utils import utils
 from controller.utils.device_type import DeviceType
+from controller.utils.peak_event_plan import GDP_PRECONDITIONING_LEAD_TIME, GDP_RECOVERY_DURATION
 from controller.utils.peak_events import PeakEvent
 from controller.utils.schedule import DeviceSchedule
 
 
 logger = logging.getLogger(__name__)
-
-# Shared with _get_gdp_window() so the override-suppression window and the ramping math never drift apart.
-GDP_PRECONDITIONING_LEAD_TIME = timedelta(hours=2)
-GDP_RECOVERY_DURATION = timedelta(hours=1)
-
 
 class ClimateController:
     _db_engine: Engine
@@ -89,7 +86,7 @@ class ClimateController:
 
         target_temperature = self._get_target_temperature(zone_id, zone_configuration, devices_states, peak_event)
 
-        heat_pump_cop = utils.get_heat_pump_cop(control_mode, outside_temperature)
+        heat_pump_cop = get_heat_pump_cop(control_mode, outside_temperature)
 
         environment_sensor_id = str(os.getenv("ENVIRONMENT_SENSOR_ID"))
         indoor_temperature = self._get_indoor_temperature(environment_sensor_id, devices_states)
@@ -230,7 +227,7 @@ class ClimateController:
     ) -> Dict[str, Any]:
         control_actions: Dict[str, Any] = {}
 
-        if self._is_linked_to_controlled_zone(heat_pump_configuration, all_devices_configurations):
+        if self._is_linked_to_controlled_zone(device_id, heat_pump_configuration, all_devices_configurations):
             logger.info(f"Heat pump {device_id} is linked to a controlled zone, skipping individual control actions")
             return control_actions
 
@@ -261,7 +258,7 @@ class ClimateController:
     ) -> Dict[str, Any]:
         control_actions: Dict[str, Any] = {}
 
-        if self._is_linked_to_controlled_zone(thermostat_configuration, all_devices_configurations):
+        if self._is_linked_to_controlled_zone(device_id, thermostat_configuration, all_devices_configurations):
             logger.info(f"Thermostat {device_id} is linked to a controlled zone, skipping individual control actions")
             return control_actions
 
@@ -350,7 +347,7 @@ class ClimateController:
         return None
 
     def _is_linked_to_controlled_zone(
-        self, device_configuration: Dict[str, Any], all_devices_configurations: Dict[str, Any]
+        self, device_id: str, device_configuration: Dict[str, Any], all_devices_configurations: Dict[str, Any]
     ) -> bool:
         linked_zone_id = device_configuration.get("linked_zone_id", {}).get("value")
         if not linked_zone_id:
@@ -359,14 +356,15 @@ class ClimateController:
         linked_zone_configuration = all_devices_configurations.get(linked_zone_id)
         if not linked_zone_configuration:
             logger.warning(
-                f"Device {device_configuration} is linked to zone {linked_zone_id} which does not exist in the "
-                f"configuration"
+                "Device %s is linked to zone %s which does not exist in the configuration",
+                device_id,
+                linked_zone_id,
             )
             return False
 
         linked_zone_mode = linked_zone_configuration.get("mode", {}).get("value", "off")
         if linked_zone_mode == "off":
-            logger.info(f"Device {device_configuration} is linked to zone {linked_zone_id} which is in OFF mode")
+            logger.debug("Device %s is linked to zone %s which is in OFF mode", device_id, linked_zone_id)
             return False
 
         return True

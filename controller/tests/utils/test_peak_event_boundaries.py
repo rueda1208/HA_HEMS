@@ -17,14 +17,27 @@ def moderate_plan():
 
 
 def test_phase_boundaries_are_start_inclusive_end_exclusive(moderate_plan):
-    assert moderate_plan.phase_at(START - timedelta(hours=2)) == GdpPhase.PRECONDITIONING
+    assert moderate_plan.phase_at(START - timedelta(hours=3)) == GdpPhase.PRECONDITIONING
     assert moderate_plan.phase_at(START) == GdpPhase.REDUCTION
     assert moderate_plan.phase_at(END) == GdpPhase.RECOVERY
     assert moderate_plan.phase_at(END + timedelta(hours=1)) == GdpPhase.NORMAL
 
 
 def test_window_matches_phase_boundaries(moderate_plan):
-    assert moderate_plan.window == (START - timedelta(hours=2), END + timedelta(hours=1))
+    assert moderate_plan.window == (START - timedelta(hours=3), END + timedelta(hours=1))
+
+
+def test_peak_event_identity_key_contains_stable_event_fields():
+    event = make_peak_event(START, END)
+
+    assert event.identity_key == (
+        "tarif",
+        "pointe",
+        "residentiel",
+        START.isoformat(),
+        END.isoformat(),
+        str(int((END - START).total_seconds() / 60)),
+    )
 
 
 def test_device_can_disable_profile_preconditioning():
